@@ -95,7 +95,7 @@ while running:
         if b["bounces"] > max_bounces:
             bullets.remove(b)
 
-    # Draw background
+    # Nakresleni pozadi
     screen.fill(BLACK)
 
     # Nakresleni Kostky
