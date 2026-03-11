@@ -69,9 +69,13 @@ while running:
                         dx /= dist
                         dy /= dist
 
+                    gun_length = 80
+                    bullet_x = cx + dx * gun_length
+                    bullet_y = cy + dy * gun_length
+
                     bullets.append({
-                        "x": cx,
-                        "y": cy,
+                        "x": bullet_x,
+                        "y": bullet_y,
                         "vx": dx * bullet_speed,
                         "vy": dy * bullet_speed,
                         "bounces": 0
@@ -131,7 +135,19 @@ while running:
     mx, my = pygame.mouse.get_pos()
     cx = x + size/2
     cy = y + size/2
-    pygame.draw.line(screen, WHITE, (cx, cy), (mx, my), 5)
+    
+    dx = mx - cx
+    dy = my - cy
+    dist = math.hypot(dx, dy)
+    
+    if dist != 0:
+        dx /= dist
+        dy /= dist
+    
+    gun_length = 80
+    end_x = cx + dx * gun_length
+    end_y = cy + dy * gun_length
+    pygame.draw.line(screen, WHITE, (cx, cy), (end_x, end_y), 5)
 
     # Nakresleni naboju
     for b in bullets:
@@ -144,20 +160,36 @@ while running:
     # kolecko praveho rohu
     screen.blit(overlay, (WIDTH - overlay.get_width(), 0))
     
-    # Nakresleni textu naboju a cooldownu
+    # stred velkeho kruhu
     circle_center_x = WIDTH - overlay_size // 2
     circle_center_y = overlay_size // 2
-    
-    bullet_text = bullet_font.render(f"{max_bullets - bullets_shot}/{max_bullets}", True, WHITE)
-    text_rect = bullet_text.get_rect(center=(circle_center_x, circle_center_y - 15))
-    screen.blit(bullet_text, text_rect)
-    
+
+    remaining_bullets = max_bullets - bullets_shot
+
+    # vzdalenost malych kruhu od stredu
+    radius = 70
+    bullet_radius = 26.25
+
+    # uhly pro 6 naboju rozlozenych kolem kruhu
+    angles = [90, 150, 210, 270, 330, 30]
+
+    for i in range(max_bullets):
+        angle = math.radians(angles[i])
+
+        bx = circle_center_x + math.cos(angle) * radius
+        by = circle_center_y - math.sin(angle) * radius
+
+        if i < remaining_bullets:
+            pygame.draw.circle(screen, BLACK, (int(bx), int(by)), bullet_radius)
+
+    # cooldown cislo uprostred
     if cooldown_time != 0:
         elapsed = pygame.time.get_ticks() - cooldown_time
         remaining = (cooldown_duration - elapsed) / 1000.0
+
         if remaining > 0:
-            cooldown_text = font.render(f"{remaining:.1f}s", True, RED)
-            cooldown_rect = cooldown_text.get_rect(center=(circle_center_x, circle_center_y + 15))
+            cooldown_text = bullet_font.render(f"{remaining:.1f}", True, RED)
+            cooldown_rect = cooldown_text.get_rect(center=(circle_center_x, circle_center_y))
             screen.blit(cooldown_text, cooldown_rect)
 
     pygame.display.flip()
