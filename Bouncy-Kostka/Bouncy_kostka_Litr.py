@@ -15,23 +15,39 @@ RED = (255,0,0)
 BLUE = (0,0,255)
 YELLOW = (255,255,0)
 WHITE = (255,255,255)
+PURPLE = (128,0,128)
 
 
 # kostka
 x = 100
 y = 100
-size = 40
-vx = 4
-vy = 4
+size = 50
+vx = 8
+vy = 8
+
+# sledujici kostka
+follower_x = 1000
+follower_y = 0
+follower_speed = 2
+follower_hp = 5
+follower_max_hp = 5
+
+# void effect pri smrti follower kostky
+void_x = None
+void_y = None
+void_time = None
+void_duration = 2000  # 2 sekundy v milisekundách
+void_radius = 50
+follower_void_created = False
 
 # naboje
 bullets = []
 bullet_speed = 10
-max_bounces = 1
+max_bounces = 2
 max_bullets = 6
 bullets_shot = 0
 cooldown_time = 0
-cooldown_duration = 3000  # 3 seconds in milliseconds
+cooldown_duration = 3000  # 3 sekundy v milisekundách
 
 # Font
 font = pygame.font.SysFont("consolas",20)
@@ -103,11 +119,60 @@ while running:
     if y <= 0 or y >= HEIGHT - size:
         vy = -vy
 
+    # pohyb sledujici kostky
+    fx = x + size/2
+    fy = y + size/2
+    dfx = fx - follower_x - size/2
+    dfy = fy - follower_y - size/2
+    dist = math.hypot(dfx, dfy)
+    
+    if dist > 0:
+        dfx /= dist
+        dfy /= dist
+        follower_x += dfx * follower_speed
+        follower_y += dfy * follower_speed
+    dist = math.hypot(dfx, dfy)
+    
+    if dist > 0:
+        dfx /= dist
+        dfy /= dist
+        follower_x += dfx * follower_speed
+        follower_y += dfy * follower_speed
+    
+    # kontrola smrti follower kostky
+    if follower_hp <= 0 and not follower_void_created:
+        void_x = follower_x + size/2
+        void_y = follower_y + size/2
+        void_time = pygame.time.get_ticks()
+        follower_void_created = True
+    
+    # kontrola konce void efektu
+    if void_time is not None:
+        elapsed = pygame.time.get_ticks() - void_time
+        if elapsed >= void_duration:
+            void_time = None
+            void_x = None
+            void_y = None
+
     # pocinani pohybu naboju
     for b in bullets[:]:
 
         b["x"] += b["vx"]
         b["y"] += b["vy"]
+
+        # kolize s follower kostkou
+        if follower_hp > 0 and (follower_x < b["x"] < follower_x + size and 
+            follower_y < b["y"] < follower_y + size):
+            if b in bullets:
+                bullets.remove(b)
+                follower_hp -= 1
+            continue
+        
+        # kolize s void efektem
+        if void_time is not None and math.hypot(b["x"] - void_x, b["y"] - void_y) < void_radius:
+            if b in bullets:
+                bullets.remove(b)
+            continue
 
         bounced = False
 
@@ -123,13 +188,22 @@ while running:
             b["bounces"] += 1
 
         if b["bounces"] > max_bounces:
-            bullets.remove(b)
+            if b in bullets:
+                bullets.remove(b)
 
     # Nakresleni pozadi
     screen.fill(BLACK)
 
     # Nakresleni Kostky
     pygame.draw.rect(screen, RED, (x, y, size, size))
+
+    # Nakresleni sledujici kostky
+    if follower_hp > 0:
+        pygame.draw.rect(screen, BLUE, (follower_x, follower_y, size, size))
+    
+    # Nakresleni void efektu
+    if void_time is not None:
+        pygame.draw.circle(screen, PURPLE, (int(void_x), int(void_y)), void_radius, 3)
 
     # Čara pistole
     mx, my = pygame.mouse.get_pos()
