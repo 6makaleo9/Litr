@@ -5,8 +5,8 @@ import math
 pygame.init()
 
 # okno
-WIDTH, HEIGHT = 1000, 800
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+WIDTH, HEIGHT = pygame.display.get_desktop_sizes()[0]
+screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("Litr Kostek")
 
 # barvy
@@ -16,6 +16,8 @@ BLUE = (0,0,255)
 YELLOW = (255,255,0)
 WHITE = (255,255,255)
 PURPLE = (128,0,128)
+OLD_GOLD = (207,181,59)
+VEGAS_GOLD = (197,179,88)
 
 
 # kostka
@@ -43,7 +45,9 @@ follower_void_created = False
 # naboje
 bullets = []
 bullet_speed = 10
-max_bounces = 2
+bullet_acceleration = 0.5  # kolik rychlosti naboj ziska kazdou sekundu (progresivne zrychlovani)
+max_bullet_speed = 50  # max aby naboje nezacaly glitchovat nebo padat kvuli extremni rychlosti
+max_bounces = 10000
 max_bullets = 6
 bullets_shot = 0
 cooldown_time = 0
@@ -59,12 +63,16 @@ clock = pygame.time.Clock()
 overlay_size = 250
 overlay = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
 # kolco barva
-pygame.draw.circle(overlay, (255, 255, 255, 128), (overlay_size//2, overlay_size//2), overlay_size//2)
+pygame.draw.circle(overlay, (255, 255, 255, 100), (overlay_size//2, overlay_size//2), overlay_size//2)
 
 running = True
 while running:
 
+    # delta cas (sekundy)
+    dt = clock.tick(60) / 1000.0
+
     for event in pygame.event.get():
+
 
         if event.type == pygame.QUIT:
             running = False
@@ -107,7 +115,7 @@ while running:
         elapsed = pygame.time.get_ticks() - cooldown_time
         if elapsed >= cooldown_duration:
             cooldown_time = 0
-            bullets = []
+            bullets_shot = 0
             bullets_shot = 0
 
     # pohyb kostky
@@ -156,6 +164,19 @@ while running:
 
     # pocinani pohybu naboju
     for b in bullets[:]:
+
+        # nabirani rychlosti naboje
+        speed = math.hypot(b["vx"], b["vy"])
+        if speed > 0:
+            factor = 1 + bullet_acceleration * dt
+            b["vx"] *= factor
+            b["vy"] *= factor
+            
+            # cap max speed to prevent glitching/crashes
+            new_speed = math.hypot(b["vx"], b["vy"])
+            if new_speed > max_bullet_speed:
+                b["vx"] = (b["vx"] / new_speed) * max_bullet_speed
+                b["vy"] = (b["vy"] / new_speed) * max_bullet_speed
 
         b["x"] += b["vx"]
         b["y"] += b["vy"]
@@ -254,7 +275,7 @@ while running:
         by = circle_center_y - math.sin(angle) * radius
 
         if i < remaining_bullets:
-            pygame.draw.circle(screen, BLACK, (int(bx), int(by)), bullet_radius)
+            pygame.draw.circle(screen, VEGAS_GOLD, (int(bx), int(by)), bullet_radius)
 
     # cooldown cislo uprostred
     if cooldown_time != 0:
@@ -267,7 +288,6 @@ while running:
             screen.blit(cooldown_text, cooldown_rect)
 
     pygame.display.flip()
-    clock.tick(60)
 
 pygame.quit()
 sys.exit()
