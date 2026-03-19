@@ -41,13 +41,16 @@ void_time = None
 void_duration = 2000  # 2 sekundy v milisekundách
 void_radius = 50
 follower_void_created = False
+paused = False
+pause_start_time = None
+cooldown_remaining_on_pause = None
 
 # naboje
 bullets = []
 bullet_speed = 10
 bullet_acceleration = 0.5  # kolik rychlosti naboj ziska kazdou sekundu (progresivne zrychlovani)
 max_bullet_speed = 50  # max aby naboje nezacaly glitchovat nebo padat kvuli extremni rychlosti
-max_bounces = 10000
+max_bounces = 100
 max_bullets = 6
 bullets_shot = 0
 cooldown_time = 0
@@ -77,7 +80,24 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            paused = not paused
+            now = pygame.time.get_ticks()
+            if paused:
+                pause_start_time = now
+                if cooldown_time != 0:
+                    cooldown_remaining_on_pause = max(0, cooldown_duration - (now - cooldown_time))
+            else:
+                if pause_start_time is not None:
+                    pause_delta = now - pause_start_time
+                    pause_start_time = None
+                    if void_time is not None:
+                        void_time += pause_delta
+                if cooldown_remaining_on_pause is not None:
+                    cooldown_time = now - (cooldown_duration - cooldown_remaining_on_pause)
+                    cooldown_remaining_on_pause = None
+
+        if not paused and event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 if bullets_shot < max_bullets and cooldown_time == 0:
                     mx, my = pygame.mouse.get_pos()
@@ -110,107 +130,108 @@ while running:
                     if bullets_shot == max_bullets:
                         cooldown_time = pygame.time.get_ticks()
 
-    # cooldown pro naboje
-    if cooldown_time != 0:
-        elapsed = pygame.time.get_ticks() - cooldown_time
-        if elapsed >= cooldown_duration:
-            cooldown_time = 0
-            bullets_shot = 0
-            bullets_shot = 0
+    if not paused:
+        # cooldown pro naboje
+        if cooldown_time != 0:
+            elapsed = pygame.time.get_ticks() - cooldown_time
+            if elapsed >= cooldown_duration:
+                cooldown_time = 0
+                bullets_shot = 0
+                bullets_shot = 0
 
-    # pohyb kostky
-    x += vx
-    y += vy
+        # pohyb kostky
+        x += vx
+        y += vy
 
-    if x <= 0 or x >= WIDTH - size:
-        vx = -vx
-    if y <= 0 or y >= HEIGHT - size:
-        vy = -vy
+        if x <= 0 or x >= WIDTH - size:
+            vx = -vx
+        if y <= 0 or y >= HEIGHT - size:
+            vy = -vy
 
-    # pohyb sledujici kostky
-    fx = x + size/2
-    fy = y + size/2
-    dfx = fx - follower_x - size/2
-    dfy = fy - follower_y - size/2
-    dist = math.hypot(dfx, dfy)
-    
-    if dist > 0:
-        dfx /= dist
-        dfy /= dist
-        follower_x += dfx * follower_speed
-        follower_y += dfy * follower_speed
-    dist = math.hypot(dfx, dfy)
-    
-    if dist > 0:
-        dfx /= dist
-        dfy /= dist
-        follower_x += dfx * follower_speed
-        follower_y += dfy * follower_speed
-    
-    # kontrola smrti follower kostky
-    if follower_hp <= 0 and not follower_void_created:
-        void_x = follower_x + size/2
-        void_y = follower_y + size/2
-        void_time = pygame.time.get_ticks()
-        follower_void_created = True
-    
-    # kontrola konce void efektu
-    if void_time is not None:
-        elapsed = pygame.time.get_ticks() - void_time
-        if elapsed >= void_duration:
-            void_time = None
-            void_x = None
-            void_y = None
-
-    # pocinani pohybu naboju
-    for b in bullets[:]:
-
-        # nabirani rychlosti naboje
-        speed = math.hypot(b["vx"], b["vy"])
-        if speed > 0:
-            factor = 1 + bullet_acceleration * dt
-            b["vx"] *= factor
-            b["vy"] *= factor
-            
-            # cap max speed to prevent glitching/crashes
-            new_speed = math.hypot(b["vx"], b["vy"])
-            if new_speed > max_bullet_speed:
-                b["vx"] = (b["vx"] / new_speed) * max_bullet_speed
-                b["vy"] = (b["vy"] / new_speed) * max_bullet_speed
-
-        b["x"] += b["vx"]
-        b["y"] += b["vy"]
-
-        # kolize s follower kostkou
-        if follower_hp > 0 and (follower_x < b["x"] < follower_x + size and 
-            follower_y < b["y"] < follower_y + size):
-            if b in bullets:
-                bullets.remove(b)
-                follower_hp -= 1
-            continue
+        # pohyb sledujici kostky
+        fx = x + size/2
+        fy = y + size/2
+        dfx = fx - follower_x - size/2
+        dfy = fy - follower_y - size/2
+        dist = math.hypot(dfx, dfy)
         
-        # kolize s void efektem
-        if void_time is not None and math.hypot(b["x"] - void_x, b["y"] - void_y) < void_radius:
-            if b in bullets:
-                bullets.remove(b)
-            continue
+        if dist > 0:
+            dfx /= dist
+            dfy /= dist
+            follower_x += dfx * follower_speed
+            follower_y += dfy * follower_speed
+        dist = math.hypot(dfx, dfy)
+        
+        if dist > 0:
+            dfx /= dist
+            dfy /= dist
+            follower_x += dfx * follower_speed
+            follower_y += dfy * follower_speed
+        
+        # kontrola smrti follower kostky
+        if follower_hp <= 0 and not follower_void_created:
+            void_x = follower_x + size/2
+            void_y = follower_y + size/2
+            void_time = pygame.time.get_ticks()
+            follower_void_created = True
+        
+        # kontrola konce void efektu
+        if void_time is not None:
+            elapsed = pygame.time.get_ticks() - void_time
+            if elapsed >= void_duration:
+                void_time = None
+                void_x = None
+                void_y = None
 
-        bounced = False
+        # pocinani pohybu naboju
+        for b in bullets[:]:
 
-        if b["x"] <= 0 or b["x"] >= WIDTH:
-            b["vx"] = -b["vx"]
-            bounced = True
+            # nabirani rychlosti naboje
+            speed = math.hypot(b["vx"], b["vy"])
+            if speed > 0:
+                factor = 1 + bullet_acceleration * dt
+                b["vx"] *= factor
+                b["vy"] *= factor
+                
+                # cap max speed to prevent glitching/crashes
+                new_speed = math.hypot(b["vx"], b["vy"])
+                if new_speed > max_bullet_speed:
+                    b["vx"] = (b["vx"] / new_speed) * max_bullet_speed
+                    b["vy"] = (b["vy"] / new_speed) * max_bullet_speed
 
-        if b["y"] <= 0 or b["y"] >= HEIGHT:
-            b["vy"] = -b["vy"]
-            bounced = True
+            b["x"] += b["vx"]
+            b["y"] += b["vy"]
 
-        if bounced:
-            b["bounces"] += 1
+            # kolize s follower kostkou
+            if follower_hp > 0 and (follower_x < b["x"] < follower_x + size and 
+                follower_y < b["y"] < follower_y + size):
+                if b in bullets:
+                    bullets.remove(b)
+                    follower_hp -= 1
+                continue
+            
+            # kolize s void efektem
+            if void_time is not None and math.hypot(b["x"] - void_x, b["y"] - void_y) < void_radius:
+                if b in bullets:
+                    bullets.remove(b)
+                continue
 
-        if b["bounces"] > max_bounces:
-            if b in bullets:
-                bullets.remove(b)
+            bounced = False
+
+            if b["x"] <= 0 or b["x"] >= WIDTH:
+                b["vx"] = -b["vx"]
+                bounced = True
+
+            if b["y"] <= 0 or b["y"] >= HEIGHT:
+                b["vy"] = -b["vy"]
+                bounced = True
+
+            if bounced:
+                b["bounces"] += 1
+
+            if b["bounces"] > max_bounces:
+                if b in bullets:
+                    bullets.remove(b)
 
     # Nakresleni pozadi
     screen.fill(BLACK)
@@ -279,8 +300,11 @@ while running:
 
     # cooldown cislo uprostred
     if cooldown_time != 0:
-        elapsed = pygame.time.get_ticks() - cooldown_time
-        remaining = (cooldown_duration - elapsed) / 1000.0
+        if cooldown_remaining_on_pause is not None:
+            remaining = cooldown_remaining_on_pause / 1000.0
+        else:
+            elapsed = pygame.time.get_ticks() - cooldown_time
+            remaining = (cooldown_duration - elapsed) / 1000.0
 
         if remaining > 0:
             cooldown_text = bullet_font.render(f"{remaining:.1f}", True, RED)
