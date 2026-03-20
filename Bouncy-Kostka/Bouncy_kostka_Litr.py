@@ -59,6 +59,14 @@ cooldown_duration = 3000  # 3 sekundy v milisekundách
 # Font
 font = pygame.font.SysFont("consolas",20)
 bullet_font = pygame.font.SysFont("consolas",60)
+paused_font = pygame.font.SysFont("consolas", 126)
+button_font = pygame.font.SysFont("consolas", 72)
+
+# definice tlacitek
+button_width = 450
+button_height = 100
+resume_button_rect = pygame.Rect(WIDTH // 2 - button_width // 2, 340, button_width, button_height)
+quit_button_rect = pygame.Rect(WIDTH // 2 - button_width // 2, 460, button_width, button_height)
 
 clock = pygame.time.Clock()
 
@@ -67,6 +75,10 @@ overlay_size = 250
 overlay = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
 # kolco barva
 pygame.draw.circle(overlay, (255, 255, 255, 100), (overlay_size//2, overlay_size//2), overlay_size//2)
+
+# paused overlay
+paused_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+pygame.draw.rect(paused_overlay, (128, 128, 128, 128), (0, 0, WIDTH, HEIGHT))
 
 running = True
 while running:
@@ -129,6 +141,22 @@ while running:
                     
                     if bullets_shot == max_bullets:
                         cooldown_time = pygame.time.get_ticks()
+
+        if paused and event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                mx, my = pygame.mouse.get_pos()
+                if resume_button_rect.collidepoint(mx, my):
+                    paused = False
+                    if pause_start_time is not None:
+                        pause_delta = pygame.time.get_ticks() - pause_start_time
+                        pause_start_time = None
+                        if void_time is not None:
+                            void_time += pause_delta
+                        if cooldown_remaining_on_pause is not None:
+                            cooldown_time = pygame.time.get_ticks() - (cooldown_duration - cooldown_remaining_on_pause)
+                            cooldown_remaining_on_pause = None
+                elif quit_button_rect.collidepoint(mx, my):
+                    running = False
 
     if not paused:
         # cooldown pro naboje
@@ -193,7 +221,7 @@ while running:
                 b["vx"] *= factor
                 b["vy"] *= factor
                 
-                # cap max speed to prevent glitching/crashes
+                # max aby naboje nezacaly glitchovat nebo padat kvuli extremni rychlosti
                 new_speed = math.hypot(b["vx"], b["vy"])
                 if new_speed > max_bullet_speed:
                     b["vx"] = (b["vx"] / new_speed) * max_bullet_speed
@@ -310,6 +338,23 @@ while running:
             cooldown_text = bullet_font.render(f"{remaining:.1f}", True, RED)
             cooldown_rect = cooldown_text.get_rect(center=(circle_center_x, circle_center_y))
             screen.blit(cooldown_text, cooldown_rect)
+
+    if paused:
+        screen.blit(paused_overlay, (0, 0))
+        # nakresleni textu "PAUSED" uprostred obrazovky
+        paused_text = paused_font.render("PAUSED", True, RED)
+        paused_rect = paused_text.get_rect(center=(WIDTH // 2, 127))
+        screen.blit(paused_text, paused_rect)
+        # nakresleni tlacitek
+        pygame.draw.rect(screen, (192, 192, 192), resume_button_rect)  # Brighter gray
+        pygame.draw.rect(screen, (192, 192, 192), quit_button_rect)
+        # nakresleni textu tlacitek
+        resume_text = button_font.render("Resume", True, BLACK)
+        quit_text = button_font.render("Quit", True, BLACK)
+        resume_text_rect = resume_text.get_rect(center=resume_button_rect.center)
+        quit_text_rect = quit_text.get_rect(center=quit_button_rect.center)
+        screen.blit(resume_text, resume_text_rect)
+        screen.blit(quit_text, quit_text_rect)
 
     pygame.display.flip()
 
