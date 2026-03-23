@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+import random
 
 pygame.init()
 
@@ -14,6 +15,7 @@ BLACK = (0,0,0)
 RED = (255,0,0)
 BLUE = (0,0,255)
 YELLOW = (255,255,0)
+GREEN = (0,255,0)
 WHITE = (255,255,255)
 PURPLE = (128,0,128)
 OLD_GOLD = (207,181,59)
@@ -33,6 +35,17 @@ follower_y = 0
 follower_speed = 2
 follower_hp = 5
 follower_max_hp = 5
+
+# zeleny nepritel
+green_x = 500
+green_y = 500
+green_speed = 2
+green_hp = 4
+green_max_hp = 4
+green_size = 50
+
+# male zelene nepratele
+small_enemies = []
 
 # void effect pri smrti follower kostky
 void_x = None
@@ -196,12 +209,59 @@ while running:
             follower_x += dfx * follower_speed
             follower_y += dfy * follower_speed
         
+        # pohyb zeleneho nepratela
+        if green_hp > 0:
+            dfx = fx - green_x - green_size/2
+            dfy = fy - green_y - green_size/2
+            dist = math.hypot(dfx, dfy)
+            
+            if dist > 0:
+                dfx /= dist
+                dfy /= dist
+                green_x += dfx * green_speed
+                green_y += dfy * green_speed
+        
+        # pohyb malych zelenych nepratel
+        for s in small_enemies:
+            dfx = fx - s['x'] - s['size']/2
+            dfy = fy - s['y'] - s['size']/2
+            dist = math.hypot(dfx, dfy)
+            
+            if dist > 0:
+                dfx /= dist
+                dfy /= dist
+                s['x'] += dfx * s['speed']
+                s['y'] += dfy * s['speed']
+        
         # kontrola smrti follower kostky
         if follower_hp <= 0 and not follower_void_created:
             void_x = follower_x + size/2
             void_y = follower_y + size/2
             void_time = pygame.time.get_ticks()
             follower_void_created = True
+        
+        # kontrola smrti zeleneho nepratela
+        if green_hp <= 0:
+            # rozdeleni na dva male nepratele, max 2 celkem
+            if len(small_enemies) < 2:
+                small_enemies.append({
+                    'x': green_x + green_size/4,
+                    'y': green_y,
+                    'hp': 2,
+                    'size': 25,
+                    'speed': 4,
+                    'color': GREEN
+                })
+            if len(small_enemies) < 2:
+                small_enemies.append({
+                    'x': green_x - green_size/4,
+                    'y': green_y,
+                    'hp': 2,
+                    'size': 25,
+                    'speed': 4,
+                    'color': GREEN
+                })
+            green_hp = -1  # nepritel je mrtvy, nerespawnuje
         
         # kontrola konce void efektu
         if void_time is not None:
@@ -238,6 +298,28 @@ while running:
                     follower_hp -= 1
                 continue
             
+            # kolize se zelenym nepritelem
+            if green_hp > 0 and (green_x < b["x"] < green_x + green_size and 
+                green_y < b["y"] < green_y + green_size):
+                if b in bullets:
+                    bullets.remove(b)
+                    green_hp -= 1
+                continue
+            
+            # kolize s malymi zelenymi neprateli
+            for s in small_enemies[:]:
+                if s['x'] < b["x"] < s['x'] + s['size'] and s['y'] < b["y"] < s['y'] + s['size']:
+                    if b in bullets:
+                        bullets.remove(b)
+                        s['hp'] -= 1
+                        if s['hp'] <= 0:
+                            small_enemies.remove(s)
+                            # respawn velkeho zeleneho nepratela na nahodne pozici
+                            green_hp = 4
+                            green_x = random.randint(0, WIDTH - green_size)
+                            green_y = random.randint(0, HEIGHT - green_size)
+                    break  # jeden naboj jeden nepritel
+            
             # kolize s void efektem
             if void_time is not None and math.hypot(b["x"] - void_x, b["y"] - void_y) < void_radius:
                 if b in bullets:
@@ -270,6 +352,14 @@ while running:
     # Nakresleni sledujici kostky
     if follower_hp > 0:
         pygame.draw.rect(screen, BLUE, (follower_x, follower_y, size, size))
+    
+    # Nakresleni zeleneho nepratela
+    if green_hp > 0:
+        pygame.draw.rect(screen, GREEN, (green_x, green_y, green_size, green_size))
+    
+    # Nakresleni malych zelenych nepratel
+    for s in small_enemies:
+        pygame.draw.rect(screen, s['color'], (s['x'], s['y'], s['size'], s['size']))
     
     # Nakresleni void efektu
     if void_time is not None:
