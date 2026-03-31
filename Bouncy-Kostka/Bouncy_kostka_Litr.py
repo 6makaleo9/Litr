@@ -45,7 +45,11 @@ green_size = 50
 # male zelene nepratele
 small_enemies = []
 
-# void effect pri smrti follower kostky
+# vizualni efekty
+particles = []
+cube_trail = []
+
+# efekt prázdnoty při smrti sledující kostky
 void_x = None
 void_y = None
 void_time = None
@@ -67,7 +71,7 @@ bullets_shot = 0
 cooldown_time = 0
 cooldown_duration = 3000  # 3 sekundy v milisekundách
 
-# Font
+# Písmo
 font = pygame.font.SysFont("consolas",20)
 bullet_font = pygame.font.SysFont("consolas",60)
 paused_font = pygame.font.SysFont("consolas", 126)
@@ -87,7 +91,7 @@ overlay = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
 # kolco barva
 pygame.draw.circle(overlay, (255, 255, 255, 100), (overlay_size//2, overlay_size//2), overlay_size//2)
 
-# paused overlay
+# překrytí pauzy
 paused_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
 pygame.draw.rect(paused_overlay, (128, 128, 128, 128), (0, 0, WIDTH, HEIGHT))
 
@@ -170,6 +174,18 @@ while running:
                     running = False
 
     if not paused:
+        # aktualizace vizuálních efektů
+        cube_trail.append({'x': x, 'y': y, 'life': 255})
+        for t in cube_trail:
+            t['life'] -= 10
+        cube_trail = [t for t in cube_trail if t['life'] > 0]
+        
+        for p in particles:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= 5
+        particles = [p for p in particles if p['life'] > 0]
+
         # cooldown pro naboje
         if cooldown_time != 0:
             elapsed = pygame.time.get_ticks() - cooldown_time
@@ -232,7 +248,7 @@ while running:
                 s['x'] += dfx * s['speed']
                 s['y'] += dfy * s['speed']
         
-        # kontrola smrti follower kostky
+        # kontrola smrti sledující kostky
         if follower_hp <= 0 and not follower_void_created:
             void_x = follower_x + size/2
             void_y = follower_y + size/2
@@ -242,6 +258,17 @@ while running:
         # kontrola smrti velkych zelenych nepratel
         for b_enemy in big_enemies[:]:
             if b_enemy['hp'] <= 0:
+                # pridani partiklu exploze velkeho nepritele
+                for _ in range(20):
+                    particles.append({
+                        'x': b_enemy['x'] + green_size/2,
+                        'y': b_enemy['y'] + green_size/2,
+                        'vx': random.uniform(-4, 4),
+                        'vy': random.uniform(-4, 4),
+                        'life': random.randint(150, 255),
+                        'color': GREEN,
+                        'size': random.randint(4, 10)
+                    })
                 # rozdeleni na dva male nepratele
                 small_enemies.append({
                     'x': b_enemy['x'] + green_size/4,
@@ -261,7 +288,7 @@ while running:
                 })
                 big_enemies.remove(b_enemy)
         
-        # kontrola konce void efektu
+        # kontrola konce efektu prázdnoty
         if void_time is not None:
             elapsed = pygame.time.get_ticks() - void_time
             if elapsed >= void_duration:
@@ -288,7 +315,7 @@ while running:
             b["x"] += b["vx"]
             b["y"] += b["vy"]
 
-            # kolize s follower kostkou
+            # kolize se sledující kostkou
             if follower_hp > 0 and (follower_x < b["x"] < follower_x + size and 
                 follower_y < b["y"] < follower_y + size):
                 if b in bullets:
@@ -316,6 +343,17 @@ while running:
                         bullets.remove(b)
                         s['hp'] -= 1
                         if s['hp'] <= 0:
+                            # pridani partiklu exploze maleho nepritele
+                            for _ in range(10):
+                                particles.append({
+                                    'x': s['x'] + s['size']/2,
+                                    'y': s['y'] + s['size']/2,
+                                    'vx': random.uniform(-3, 3),
+                                    'vy': random.uniform(-3, 3),
+                                    'life': random.randint(100, 200),
+                                    'color': s['color'],
+                                    'size': random.randint(3, 7)
+                                })
                             small_enemies.remove(s)
                             # kazdy kill maleho spawne jednoho velkeho na nahodne pozici
                             big_enemies.append({
@@ -325,7 +363,7 @@ while running:
                             })
                     break  # jeden naboj jeden nepritel
             
-            # kolize s void efektem
+            # kolize s efektem prázdnoty
             if void_time is not None and math.hypot(b["x"] - void_x, b["y"] - void_y) < void_radius:
                 if b in bullets:
                     bullets.remove(b)
@@ -351,6 +389,24 @@ while running:
     # Nakresleni pozadi
     screen.fill(BLACK)
 
+    # Nakresleni trail efekty (kostky se postupne zmencuji)
+    for t in cube_trail:
+        t_size = size * (t['life'] / 255)
+        offset = (size - t_size) / 2
+        brightness = int(120 * (t['life'] / 255))  # snížení maximálního jasu, aby byla stopa tmavší
+        dark_red = (brightness, 0, 0)
+        pygame.draw.rect(screen, dark_red, (t['x'] + offset, t['y'] + offset, t_size, t_size))
+
+    # Nakresleni partiklu
+    for p in particles:
+        # Stejna mechanika jako u trail - postupne blednuti k cerne a zmencovani
+        p_size = p['size'] * (p['life'] / 255)
+        p_offset = (p['size'] - p_size) / 2
+        r, g, b = p['color']
+        ratio = p['life'] / 255
+        p_color = (int(r * ratio), int(g * ratio), int(b * ratio))
+        pygame.draw.rect(screen, p_color, (p['x'] + p_offset, p['y'] + p_offset, p_size, p_size))
+
     # Nakresleni Kostky
     pygame.draw.rect(screen, RED, (x, y, size, size))
 
@@ -367,7 +423,7 @@ while running:
     for s in small_enemies:
         pygame.draw.rect(screen, s['color'], (s['x'], s['y'], s['size'], s['size']))
     
-    # Nakresleni void efektu
+    # Nakreslení efektu prázdnoty
     if void_time is not None:
         pygame.draw.circle(screen, PURPLE, (int(void_x), int(void_y)), void_radius, 3)
 
@@ -393,7 +449,7 @@ while running:
     for b in bullets:
         pygame.draw.circle(screen, YELLOW, (int(b["x"]), int(b["y"])), 5)
 
-    # Kordinace
+    # Souřadnice
     coords = font.render(f"X: {int(x)}  Y: {int(y)}", True, WHITE)
     screen.blit(coords, (10,10))
 
@@ -442,7 +498,7 @@ while running:
         paused_rect = paused_text.get_rect(center=(WIDTH // 2, 127))
         screen.blit(paused_text, paused_rect)
         # nakresleni tlacitek
-        pygame.draw.rect(screen, (192, 192, 192), resume_button_rect)  # Brighter gray
+        pygame.draw.rect(screen, (192, 192, 192), resume_button_rect)  # Světlejší šedá
         pygame.draw.rect(screen, (192, 192, 192), quit_button_rect)
         # nakresleni textu tlacitek
         resume_text = button_font.render("Resume", True, BLACK)
