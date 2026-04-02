@@ -387,7 +387,10 @@ while running:
                     bullets.remove(b)
 
     # Nakresleni pozadi
-    screen.fill(BLACK)
+    # Pulzovani pozadi od cerne (0) do sedive (120) a zpet
+    pulse_val = (math.sin(pygame.time.get_ticks() / 1000.0) + 1) / 2
+    bg_gray = int(pulse_val * 120)
+    screen.fill((bg_gray, bg_gray, bg_gray))
 
     # Nakresleni trail efekty (kostky se postupne zmencuji)
     for t in cube_trail:
