@@ -15,6 +15,7 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
+SKY_BLUE = (135, 206, 235)
 
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("consolas", 36)
@@ -30,7 +31,7 @@ jump_strength = -10
 
 # Sloupy
 pillar_width = 100
-pillar_gap = 250
+pillar_gap = 320
 pillar_velocity = 7
 pillars = []
 
@@ -38,6 +39,33 @@ score = 0
 high_score = 0
 
 state = "START" # START, HRANÍ, KONEC HRY
+
+# Mraky
+clouds = []
+for _ in range(6):
+    clouds.append({
+        "x": random.randint(0, WIDTH),
+        "y": random.randint(50, HEIGHT // 2),
+        "speed": random.uniform(0.5, 1.5),
+        "size": random.randint(50, 100)
+    })
+
+def draw_clouds():
+    for cloud in clouds:
+        cx = int(cloud["x"])
+        cy = int(cloud["y"])
+        cs = cloud["size"]
+        pygame.draw.circle(screen, WHITE, (cx, cy), cs // 2)
+        pygame.draw.circle(screen, WHITE, (cx + int(cs / 1.5), cy - int(cs / 3)), int(cs / 1.5))
+        pygame.draw.circle(screen, WHITE, (cx + int(cs * 1.3), cy), cs // 2)
+        
+        # Posun mraku
+        cloud["x"] -= cloud["speed"]
+        if cloud["x"] + cs * 2 < 0:
+            cloud["x"] = WIDTH + cs
+            cloud["y"] = random.randint(50, HEIGHT // 2)
+            cloud["speed"] = random.uniform(0.5, 1.5)
+            cloud["size"] = random.randint(50, 100)
 
 def add_pillar():
     # Zajištění dostatku místa pro mezeru
@@ -137,7 +165,7 @@ while running:
 
         # Přidání nových sloupů
         # Objeví se nový sloup, když se poslední sloup dostatečně posune na obrazovku
-        if len(pillars) == 0 or pillars[-1]["x"] < WIDTH - 450:
+        if len(pillars) == 0 or pillars[-1]["x"] < WIDTH - 650:
             add_pillar()
 
         # Kolize
@@ -156,14 +184,15 @@ while running:
                 state = "GAMEOVER"
 
     # Vykreslování
-    screen.fill(BLACK)
+    screen.fill(SKY_BLUE)
+    draw_clouds()
 
     if state == "START":
-        text = large_font.render("FLAPPY KOSTKA", True, WHITE)
+        text = large_font.render("FLAPPY KOSTKA", True, BLACK)
         screen.blit(text, (WIDTH//2 - text.get_width()//2, HEIGHT//3))
-        text2 = font.render("Click or press Space to Start", True, WHITE)
+        text2 = font.render("Click or press Space to Start", True, BLACK)
         screen.blit(text2, (WIDTH//2 - text2.get_width()//2, HEIGHT//2))
-        text3 = font.render("Press ESC to Quit", True, WHITE)
+        text3 = font.render("Press ESC to Quit", True, BLACK)
         screen.blit(text3, (WIDTH//2 - text3.get_width()//2, HEIGHT//2 + 50))
         
     elif state == "PLAYING":
@@ -176,7 +205,7 @@ while running:
         draw_cube_with_line()
 
         # Vykreslení skóre
-        score_text = large_font.render(str(score), True, WHITE)
+        score_text = large_font.render(str(score), True, BLACK)
         screen.blit(score_text, (WIDTH//2 - score_text.get_width()//2, 50))
         
     elif state == "GAMEOVER":
@@ -192,13 +221,13 @@ while running:
         text = large_font.render("GAME OVER", True, RED)
         screen.blit(text, (WIDTH//2 - text.get_width()//2, HEIGHT//3))
         
-        text2 = font.render(f"Score: {score}  High Score: {high_score}", True, WHITE)
+        text2 = font.render(f"Score: {score}  High Score: {high_score}", True, BLACK)
         screen.blit(text2, (WIDTH//2 - text2.get_width()//2, HEIGHT//2))
         
-        text3 = font.render("Click or press Space to Restart", True, WHITE)
+        text3 = font.render("Click or press Space to Restart", True, BLACK)
         screen.blit(text3, (WIDTH//2 - text3.get_width()//2, HEIGHT//2 + 50))
         
-        text4 = font.render("Press ESC to Quit", True, WHITE)
+        text4 = font.render("Press ESC to Quit", True, BLACK)
         screen.blit(text4, (WIDTH//2 - text4.get_width()//2, HEIGHT//2 + 100))
 
     pygame.display.flip()
