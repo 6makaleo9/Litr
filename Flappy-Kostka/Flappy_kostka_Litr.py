@@ -86,7 +86,12 @@ def reset_game():
     add_pillar()
     state = "PLAYING"
 
-def draw_cube_with_line():
+def draw_cube_with_line(draw_x=None, draw_y=None):
+    if draw_x is None:
+        draw_x = cube_x
+    if draw_y is None:
+        draw_y = cube_y
+
     angle = math.degrees(math.atan2(-cube_velocity, pillar_velocity))
     
     # Zvětšení plochy tak, aby se na ni vešla přečnívající čára, s udržením kostky přesně uprostřed
@@ -111,8 +116,8 @@ def draw_cube_with_line():
     rotated_cube = pygame.transform.rotate(cube_surface, angle)
     
     # Souřadnice středu kostky na obrazovce
-    cx = cube_x + cube_size / 2
-    cy = cube_y + cube_size / 2
+    cx = draw_x + cube_size / 2
+    cy = draw_y + cube_size / 2
     
     # Vykreslení otočené kostky na střed
     rot_rect = rotated_cube.get_rect(center=(cx, cy))
@@ -130,7 +135,11 @@ while running:
             
         # Skok kliknutím myši
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if state == "START" or state == "GAMEOVER":
+            if state == "START":
+                play_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT - 200, 200, 80)
+                if play_button_rect.collidepoint(event.pos):
+                    reset_game()
+            elif state == "GAMEOVER":
                 reset_game()
             elif state == "PLAYING":
                 cube_velocity = jump_strength
@@ -138,7 +147,7 @@ while running:
         # Skok mezerníkem
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                if state == "START" or state == "GAMEOVER":
+                if state == "GAMEOVER":
                     reset_game()
                 elif state == "PLAYING":
                     cube_velocity = jump_strength
@@ -188,12 +197,22 @@ while running:
     draw_clouds()
 
     if state == "START":
+        # Vykreslení kostky uprostřed obrazovky
+        draw_cube_with_line(WIDTH // 2 - cube_size // 2, HEIGHT // 2 - cube_size // 2)
+
         text = large_font.render("FLAPPY KOSTKA", True, BLACK)
-        screen.blit(text, (WIDTH//2 - text.get_width()//2, HEIGHT//3))
-        text2 = font.render("Click or press Space to Start", True, BLACK)
-        screen.blit(text2, (WIDTH//2 - text2.get_width()//2, HEIGHT//2))
+        screen.blit(text, (WIDTH//2 - text.get_width()//2, HEIGHT//4))
+
+        # Vykreslení tlačítka PLAY
+        play_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT - 200, 200, 80)
+        pygame.draw.rect(screen, GREEN, play_button_rect)
+        pygame.draw.rect(screen, BLACK, play_button_rect, 4) # border
+        
+        play_text = font.render("PLAY", True, BLACK)
+        screen.blit(play_text, (play_button_rect.centerx - play_text.get_width()//2, play_button_rect.centery - play_text.get_height()//2))
+
         text3 = font.render("Press ESC to Quit", True, BLACK)
-        screen.blit(text3, (WIDTH//2 - text3.get_width()//2, HEIGHT//2 + 50))
+        screen.blit(text3, (WIDTH//2 - text3.get_width()//2, HEIGHT - 100))
         
     elif state == "PLAYING":
         # Vykreslení sloupů
