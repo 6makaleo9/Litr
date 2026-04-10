@@ -16,6 +16,10 @@ BLACK = (0, 0, 0)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 SKY_BLUE = (135, 206, 235)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+PURPLE = (128, 0, 128)
+ORANGE = (255, 165, 0)
 
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("consolas", 36)
@@ -34,6 +38,8 @@ pillar_width = 100
 pillar_gap = 320
 pillar_velocity = 7
 pillars = []
+available_pillar_colors = [GREEN, RED, BLUE, YELLOW, PURPLE, ORANGE]
+current_pillar_color = GREEN
 
 score = 0
 high_score = 0
@@ -137,8 +143,20 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if state == "START":
                 play_button_rect = pygame.Rect(WIDTH//2 - 100, HEIGHT - 200, 200, 80)
+                settings_button_rect = pygame.Rect(WIDTH - 180, 20, 160, 50)
                 if play_button_rect.collidepoint(event.pos):
                     reset_game()
+                elif settings_button_rect.collidepoint(event.pos):
+                    state = "SETTINGS"
+            elif state == "SETTINGS":
+                back_button_rect = pygame.Rect(20, 20, 130, 50)
+                if back_button_rect.collidepoint(event.pos):
+                    state = "START"
+                num_colors = len(available_pillar_colors)
+                for i, col in enumerate(available_pillar_colors):
+                    rect = pygame.Rect(WIDTH//2 - (num_colors*80)//2 + i*80, HEIGHT//2 - 30, 60, 60)
+                    if rect.collidepoint(event.pos):
+                        current_pillar_color = col
             elif state == "GAMEOVER":
                 reset_game()
             elif state == "PLAYING":
@@ -211,14 +229,40 @@ while running:
         play_text = font.render("PLAY", True, BLACK)
         screen.blit(play_text, (play_button_rect.centerx - play_text.get_width()//2, play_button_rect.centery - play_text.get_height()//2))
 
+        # Vykreslení tlačítka SETTINGS
+        settings_button_rect = pygame.Rect(WIDTH - 180, 20, 160, 50)
+        pygame.draw.rect(screen, WHITE, settings_button_rect)
+        pygame.draw.rect(screen, BLACK, settings_button_rect, 4)
+        set_text = font.render("SETTINGS", True, BLACK)
+        screen.blit(set_text, (settings_button_rect.centerx - set_text.get_width()//2, settings_button_rect.centery - set_text.get_height()//2))
+
         text3 = font.render("Press ESC to Quit", True, BLACK)
         screen.blit(text3, (WIDTH//2 - text3.get_width()//2, HEIGHT - 100))
         
+    elif state == "SETTINGS":
+        text = large_font.render("CHOOSE PILLAR COLOR", True, BLACK)
+        screen.blit(text, (WIDTH//2 - text.get_width()//2, HEIGHT//4))
+        
+        back_button_rect = pygame.Rect(20, 20, 130, 50)
+        pygame.draw.rect(screen, WHITE, back_button_rect)
+        pygame.draw.rect(screen, BLACK, back_button_rect, 4)
+        back_text = font.render("BACK", True, BLACK)
+        screen.blit(back_text, (back_button_rect.centerx - back_text.get_width()//2, back_button_rect.centery - back_text.get_height()//2))
+
+        num_colors = len(available_pillar_colors)
+        for i, col in enumerate(available_pillar_colors):
+            rect = pygame.Rect(WIDTH//2 - (num_colors*80)//2 + i*80, HEIGHT//2 - 30, 60, 60)
+            pygame.draw.rect(screen, col, rect)
+            if col == current_pillar_color:
+                pygame.draw.rect(screen, BLACK, rect, 4) # highlight selected
+            else:
+                pygame.draw.rect(screen, BLACK, rect, 1)
+
     elif state == "PLAYING":
         # Vykreslení sloupů
         for pillar in pillars:
-            pygame.draw.rect(screen, GREEN, (pillar["x"], 0, pillar_width, pillar["top_height"]))
-            pygame.draw.rect(screen, GREEN, (pillar["x"], pillar["bottom_y"], pillar_width, HEIGHT - pillar["bottom_y"]))
+            pygame.draw.rect(screen, current_pillar_color, (pillar["x"], 0, pillar_width, pillar["top_height"]))
+            pygame.draw.rect(screen, current_pillar_color, (pillar["x"], pillar["bottom_y"], pillar_width, HEIGHT - pillar["bottom_y"]))
 
         # Vykreslení kostky
         draw_cube_with_line()
@@ -230,8 +274,8 @@ while running:
     elif state == "GAMEOVER":
         # Vykreslení sloupů
         for pillar in pillars:
-            pygame.draw.rect(screen, GREEN, (pillar["x"], 0, pillar_width, pillar["top_height"]))
-            pygame.draw.rect(screen, GREEN, (pillar["x"], pillar["bottom_y"], pillar_width, HEIGHT - pillar["bottom_y"]))
+            pygame.draw.rect(screen, current_pillar_color, (pillar["x"], 0, pillar_width, pillar["top_height"]))
+            pygame.draw.rect(screen, current_pillar_color, (pillar["x"], pillar["bottom_y"], pillar_width, HEIGHT - pillar["bottom_y"]))
 
         # Vykreslení kostky
         draw_cube_with_line()
