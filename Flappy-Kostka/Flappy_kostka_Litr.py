@@ -40,6 +40,8 @@ pillar_velocity = 7
 pillars = []
 available_pillar_colors = [GREEN, RED, BLUE, YELLOW, PURPLE, ORANGE]
 current_pillar_color = GREEN
+available_cube_colors = [RED, GREEN, BLUE, YELLOW, PURPLE, ORANGE]
+current_cube_color = RED
 
 score = 0
 high_score = 0
@@ -109,11 +111,11 @@ def draw_cube_with_line(draw_x=None, draw_y=None):
     scx = surf_size / 2
     scy = surf_size / 2
     
-    # Vykreslení červené kostky uprostřed
+    # Vykreslení kostky uprostřed
     cube_rect = pygame.Rect(scx - cube_size / 2, scy - cube_size / 2, cube_size, cube_size)
-    pygame.draw.rect(cube_surface, RED, cube_rect)
+    pygame.draw.rect(cube_surface, current_cube_color, cube_rect)
     
-    # Vykreslení bílé čáry přečnívající ze středu pravé strany červené kostky
+    # Vykreslení bílé čáry přečnívající ze středu pravé strany kostky
     start_pos = (scx, scy) 
     end_pos = (scx + cube_size / 2 + pad, scy)
     pygame.draw.line(cube_surface, WHITE, start_pos, end_pos, 4)
@@ -152,11 +154,18 @@ while running:
                 back_button_rect = pygame.Rect(20, 20, 130, 50)
                 if back_button_rect.collidepoint(event.pos):
                     state = "START"
+                
                 num_colors = len(available_pillar_colors)
                 for i, col in enumerate(available_pillar_colors):
-                    rect = pygame.Rect(WIDTH//2 - (num_colors*80)//2 + i*80, HEIGHT//2 - 30, 60, 60)
+                    rect = pygame.Rect(WIDTH//2 - (num_colors*80)//2 + i*80, HEIGHT//4 + 50, 60, 60)
                     if rect.collidepoint(event.pos):
                         current_pillar_color = col
+                        
+                num_cube_colors = len(available_cube_colors)
+                for i, col in enumerate(available_cube_colors):
+                    rect = pygame.Rect(WIDTH//2 - (num_cube_colors*80)//2 + i*80, HEIGHT//2 + 50, 60, 60)
+                    if rect.collidepoint(event.pos):
+                        current_cube_color = col
             elif state == "GAMEOVER":
                 reset_game()
             elif state == "PLAYING":
@@ -240,21 +249,35 @@ while running:
         screen.blit(text3, (WIDTH//2 - text3.get_width()//2, HEIGHT - 100))
         
     elif state == "SETTINGS":
-        text = large_font.render("CHOOSE PILLAR COLOR", True, BLACK)
-        screen.blit(text, (WIDTH//2 - text.get_width()//2, HEIGHT//4))
-        
         back_button_rect = pygame.Rect(20, 20, 130, 50)
         pygame.draw.rect(screen, WHITE, back_button_rect)
         pygame.draw.rect(screen, BLACK, back_button_rect, 4)
         back_text = font.render("BACK", True, BLACK)
         screen.blit(back_text, (back_button_rect.centerx - back_text.get_width()//2, back_button_rect.centery - back_text.get_height()//2))
 
+        # Pillar colors selection
+        text1 = font.render("CHOOSE PILLAR COLOR", True, BLACK)
+        screen.blit(text1, (WIDTH//2 - text1.get_width()//2, HEIGHT//4))
+        
         num_colors = len(available_pillar_colors)
         for i, col in enumerate(available_pillar_colors):
-            rect = pygame.Rect(WIDTH//2 - (num_colors*80)//2 + i*80, HEIGHT//2 - 30, 60, 60)
+            rect = pygame.Rect(WIDTH//2 - (num_colors*80)//2 + i*80, HEIGHT//4 + 50, 60, 60)
             pygame.draw.rect(screen, col, rect)
             if col == current_pillar_color:
-                pygame.draw.rect(screen, BLACK, rect, 4) # highlight selected
+                pygame.draw.rect(screen, BLACK, rect, 4)
+            else:
+                pygame.draw.rect(screen, BLACK, rect, 1)
+
+        # Cube colors selection
+        text2 = font.render("CHOOSE CUBE COLOR", True, BLACK)
+        screen.blit(text2, (WIDTH//2 - text2.get_width()//2, HEIGHT//2))
+        
+        num_cube_colors = len(available_cube_colors)
+        for i, col in enumerate(available_cube_colors):
+            rect = pygame.Rect(WIDTH//2 - (num_cube_colors*80)//2 + i*80, HEIGHT//2 + 50, 60, 60)
+            pygame.draw.rect(screen, col, rect)
+            if col == current_cube_color:
+                pygame.draw.rect(screen, BLACK, rect, 4)
             else:
                 pygame.draw.rect(screen, BLACK, rect, 1)
 
