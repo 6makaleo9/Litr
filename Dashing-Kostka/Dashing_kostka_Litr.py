@@ -6,8 +6,8 @@ import math
 pygame.init()
 
 # Nastavení okna
-WIDTH, HEIGHT = 1200, 800
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+WIDTH, HEIGHT = screen.get_size()
 pygame.display.set_caption("Dashing Kostka")
 
 # Barvy
@@ -22,10 +22,30 @@ GUARD_COLOR  = (185, 185, 205)   # stříbrná tsuba / hlavice
 HANDLE_COLOR = (75,  42,  18)    # tmavě hnědá rukojeť (ovinouí)
 ARROW_COLOR  = (255, 255, 160)   # žlutobílý indikátor směru
 
+# Třída nepřátel
+class Enemy:
+    def __init__(self, x, y, type_name="skeleton", hp=10):
+        self.x = x
+        self.y = y
+        self.type_name = type_name
+        self.hp = hp
+        self.max_hp = hp
+        self.color = WHITE
+        self.size = 45
+
+ENEMY_SPEED = 1.0
+SPOT_RADIUS = 500
+
 # Vlastnosti kostky
 cube_size = 50
 cube_x = float(50)
 cube_y = float(HEIGHT // 2 - cube_size // 2)
+
+enemies = [
+    Enemy(WIDTH // 2 + 200, HEIGHT // 2),
+    Enemy(WIDTH // 2 + 200, HEIGHT // 2 - 100),
+    Enemy(WIDTH // 2 + 200, HEIGHT // 2 + 100)
+]
 
 # Dash
 DASH_SPEED    = 40
@@ -34,6 +54,10 @@ vel_x = 0.0
 vel_y = 0.0
 is_charging = False
 charge_start_ticks = 0
+show_hitboxes = False
+
+attack_damage = 1
+enemies_hit_this_slash = set()
 
 # Slash – celá katana se otáčí v zápěstí (kolem středu rukojeti)
 # 0° = čepel za kostkou (-X), kladné úhly = oblouk nahoru přes hlavu dopředu
@@ -68,6 +92,10 @@ while running:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             running = False
 
+        # Přepínání zobrazení hitboxů pomocí "H"
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_h:
+            show_hitboxes = not show_hitboxes
+
         # Stisknutí tlačítka zahájí nabíjení dashe
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             is_charging = True
@@ -89,13 +117,18 @@ while running:
                 
                 cx0 = cube_x + cube_size / 2
                 cy0 = cube_y + cube_size / 2
-                ddx = pygame.mouse.get_pos()[0] - cx0
-                ddy = pygame.mouse.get_pos()[1] - cy0
+                mx, my = pygame.mouse.get_pos()
+                ddx = mx - cx0
+                ddy = my - cy0
                 dist = math.hypot(ddx, ddy)
                 if dist > 0:
                     vel_x = (ddx / dist) * final_dash_speed
                     vel_y = (ddy / dist) * final_dash_speed
                 slash_timer = SLASH_DURATION
+
+                # Inicializace kontinuální detekce zasažení pro tento útok
+                attack_damage = 5 if charge_factor >= 1.0 else 1
+                enemies_hit_this_slash.clear()
 
     # ── Pohyb kostky ──────────────────────────────────────────────────────────
     cube_x += vel_x
@@ -106,6 +139,32 @@ while running:
     cube_y  = max(0, min(HEIGHT - cube_size, cube_y))
     if abs(vel_x) < 0.1: vel_x = 0.0
     if abs(vel_y) < 0.1: vel_y = 0.0
+
+    # ── Pohyb nepřátel (AI) ───────────────────────────────────────────────────
+    cx = cube_x + cube_size / 2
+    cy = cube_y + cube_size / 2
+    for enemy in enemies:
+        ecx = enemy.x + enemy.size / 2
+        ecy = enemy.y + enemy.size / 2
+        dist = math.hypot(cx - ecx, cy - ecy)
+        
+        if dist < SPOT_RADIUS and dist > 0:
+            dx = (cx - ecx) / dist
+            dy = (cy - ecy) / dist
+            
+            if enemy.hp <= 5:
+                # Má 5 HP nebo méně -> utíká pomalu DOkud není mimo radius dohledu
+                enemy.x -= dx * ENEMY_SPEED
+                enemy.y -= dy * ENEMY_SPEED
+            else:
+                # Pronásleduje hráče
+                if dist > (cube_size / 2 + enemy.size / 2 - 5): # Zabrání vstupu přesně do středu
+                    enemy.x += dx * ENEMY_SPEED
+                    enemy.y += dy * ENEMY_SPEED
+                    
+        # Udržování nepřítele v hrací ploše
+        enemy.x = max(0, min(WIDTH - enemy.size, enemy.x))
+        enemy.y = max(0, min(HEIGHT - enemy.size, enemy.y))
 
     # ── Pohled na kurzor ──────────────────────────────────────────────────────
     cx = cube_x + cube_size / 2
@@ -120,12 +179,50 @@ while running:
         raw_t    = 1.0 - slash_timer / SLASH_DURATION
         progress = ease_katana(raw_t)
         blade_pivot = SLASH_START_ANGLE + (SLASH_END_ANGLE - SLASH_START_ANGLE) * progress
-        slash_thick = 3
         slash_timer -= 1
+        
+        # Kontinuální aplikace poškození po celou dobu trvání dashe/slashe (nedochází ke stackování na stejný cíl)
+        c_half = cube_size / 2
+        tip_dist = -10 - int(cube_size * 1.65)
+        
+        hitbox_poly = []
+        w_px, w_py = rotate_point(c_half, -c_half, -angle)
+        hitbox_poly.append((cx + w_px, cy + w_py)) # Zápěstí
+        
+        for p_angle in range(0, int(SLASH_END_ANGLE) + 5, 5):
+            rx, ry = rotate_point(tip_dist - 25, 0, p_angle) # Posunuto o 25 (poloměr nepřítele)
+            lx = rx + c_half
+            ly = ry - c_half
+            w_lx, w_ly = rotate_point(lx, ly, -angle)
+            hitbox_poly.append((cx + w_lx, cy + w_ly))
+            
+        for enemy in enemies[:]:
+            if enemy in enemies_hit_this_slash:
+                continue
+                
+            ecx = enemy.x + enemy.size / 2
+            ecy = enemy.y + enemy.size / 2
+            
+            inside = False
+            n = len(hitbox_poly)
+            p1x, p1y = hitbox_poly[0]
+            for i in range(1, n + 1):
+                p2x, p2y = hitbox_poly[i % n]
+                if ecy > min(p1y, p2y) and ecy <= max(p1y, p2y) and ecx <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xints = (ecy - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or ecx <= xints:
+                            inside = not inside
+                p1x, p1y = p2x, p2y
+                
+            if inside:
+                enemy.hp -= attack_damage
+                enemies_hit_this_slash.add(enemy)
+                if enemy.hp <= 0:
+                    enemies.remove(enemy)
     else:
         # Klidová poloha: čepel leží vodorovně vzadu
         blade_pivot = 0.0
-        slash_thick = 2
 
     # ── Katana geometry (celá zbraň se otáčí kolem rukojeti) ────────────────────
     # +X = přední strana (look direction / indicator).
@@ -219,6 +316,16 @@ while running:
     # ── Vykreslení ────────────────────────────────────────────────────────────
     screen.fill(BLACK)
 
+    # Vykreslení nepřátel
+    for enemy in enemies:
+        enemy_rect = pygame.Rect(enemy.x, enemy.y, enemy.size, enemy.size)
+        pygame.draw.rect(screen, enemy.color, enemy_rect)
+        
+        # Health bar nad nepřítelem
+        bar_w = int(enemy.size * (enemy.hp / enemy.max_hp))
+        pygame.draw.rect(screen, RED, (enemy.x, enemy.y - 12, enemy.size, 6))
+        pygame.draw.rect(screen, (0, 255, 0), (enemy.x, enemy.y - 12, bar_w, 6))
+
     # Kostka a indikátory na pomocné průhledné ploše
     cube_surf = pygame.Surface((SURF_SIZE, SURF_SIZE), pygame.SRCALPHA)
 
@@ -245,8 +352,7 @@ while running:
                      (cube_rect.right - 1, cube_rect.bottom - 1), 2)
 
     # ── Indikátor směru (šipka, bez slash rotace) ─────────────────────────────
-    if len(arrow_pts_surf) == 3:
-        pygame.draw.polygon(cube_surf, draw_arrow_color, arrow_pts_surf)
+    pygame.draw.polygon(cube_surf, draw_arrow_color, arrow_pts_surf)
 
     # ── Katana: rukojeť → garda → čepel ───────────────────────────────────────────
     # 1. Rukojeť (tsuka) – tmavě hnědý grip
@@ -264,6 +370,42 @@ while running:
     rotated_surf = pygame.transform.rotate(cube_surf, angle)
     rotated_rect = rotated_surf.get_rect(center=(int(cx), int(cy)))
     screen.blit(rotated_surf, rotated_rect)
+
+    # ── Vykreslení Hitboxů (pokud je zapnuto) ─────────────────────────────────
+    if show_hitboxes:
+        hitbox_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        
+        # Vykreslení dokonalého polygonu, který ukazuje přesný rozsah katany
+        c_half = cube_size / 2
+        tip_dist = -10 - int(cube_size * 1.65)
+        
+        draw_poly = []
+        w_px, w_py = rotate_point(c_half, -c_half, -angle)
+        draw_poly.append((cx + w_px, cy + w_py)) # Zápěstí
+        
+        for p_angle in range(0, int(SLASH_END_ANGLE) + 5, 5):
+            rx, ry = rotate_point(tip_dist, 0, p_angle) 
+            lx = rx + c_half
+            ly = ry - c_half
+            w_lx, w_ly = rotate_point(lx, ly, -angle)
+            draw_poly.append((cx + w_lx, cy + w_ly))
+            
+        pygame.draw.polygon(hitbox_surf, (255, 0, 0, 40), draw_poly) # Poloprůhledná výplň čepele
+        pygame.draw.polygon(hitbox_surf, RED, draw_poly, 2)          # Červený okraj přesně podle dráhy
+        
+        # Znázornění středu a okraje nepřátel
+        for enemy in enemies:
+            ecx = enemy.x + enemy.size / 2
+            ecy = enemy.y + enemy.size / 2
+            pygame.draw.circle(hitbox_surf, (0, 255, 0, 150), (int(ecx), int(ecy)), 4)
+            
+        # Znázornění zápěstí hráče
+        pygame.draw.circle(hitbox_surf, (0, 255, 255, 150), (int(cx + w_px), int(cy + w_py)), 4)
+            
+        # Znázornění dohledu nepřátel (Agro radius)
+        pygame.draw.circle(hitbox_surf, (255, 255, 0, 70), (int(cx), int(cy)), SPOT_RADIUS, 1)
+            
+        screen.blit(hitbox_surf, (0, 0))
 
     pygame.display.flip()
     clock.tick(60)
