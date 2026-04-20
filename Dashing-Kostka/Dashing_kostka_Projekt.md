@@ -4,8 +4,6 @@
 Dynamická akční hra v Pygame, kde ovládáte modrou kostku vybavenou katánou a čelíte množství nepřátel. Používejte strategické dashing manévry k úniku a útoku na nepřátele typu "skeleton".
 
 ## Gameplay
-- Ovládejte modrou kostku po plné obrazovce
-- Bojujte proti vlnám nepřátel se systémem zdraví
 - Využívejte dash mechaniku pro mobilitu a obranu
 - Umělá inteligence nepřátel vás sleduje a napadá
 
