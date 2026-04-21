@@ -18,8 +18,8 @@ BLUE_DARK    = (15,  45,  130)   # tmavší okraj kostky
 BLUE_LIGHT   = (90,  150, 255)   # světlý highlight kostky
 WHITE        = (255, 255, 255)
 BLADE_COLOR  = (210, 228, 255)   # lehce namodralá ocel čepele
-GUARD_COLOR  = (185, 185, 205)   # stříbrná tsuba / hlavice
-HANDLE_COLOR = (75,  42,  18)    # tmavě hnědá rukojeť (ovinouí)
+GUARD_COLOR  = (185, 185, 205)   # stříbrná hlavice
+HANDLE_COLOR = (75,  42,  18)    # tmavě hnědá rukojeť
 ARROW_COLOR  = (255, 255, 160)   # žlutobílý indikátor směru
 
 # Třída nepřátel - co je nepřítel?
@@ -70,6 +70,10 @@ vel_y = 0.0  # Aktuální rychlost Y
 is_charging = False  # Nabíjí se teď dash?
 charge_start_ticks = 0  # Kdy začalo nabíjení?
 show_hitboxes = False  # Zobrazit hitboxy? (H klávesa)
+
+# Počitadlo Dokončených levelů
+level_completed = 0
+font = pygame.font.SysFont(None, 48)
 
 # Útok - zranění
 attack_damage = 1  # Kolik bodů zranění způsobí útok
@@ -167,10 +171,14 @@ while running:
     if abs(vel_y) < 0.1: vel_y = 0.0
 
     # RESPAWN CHECKPOINT - kontrola když se dotkneš zelené krabičky
-    if (cube_x < respawn_x + RESPAWN_WIDTH and 
+    if (len(enemies) == 0 and
+        cube_x < respawn_x + RESPAWN_WIDTH and 
         cube_x + cube_size > respawn_x and
         cube_y < respawn_y + RESPAWN_HEIGHT and 
         cube_y + cube_size > respawn_y):  # Kontrola dotyku
+        # Přidej skóre
+        level_completed += 1
+        
         # Přeskoč kostku zpět na start
         cube_x = float(START_X)
         cube_y = float(START_Y)
@@ -474,8 +482,9 @@ while running:
             
         screen.blit(hitbox_surf, (0, 0))
 
-# Vykresli debug plochu
-        screen.blit(hitbox_surf, (0, 0))
+    # Vykresli skóre vpravo nahoře
+    score_surf = font.render(f"Level Reached: {level_completed}", True, WHITE)
+    screen.blit(score_surf, (WIDTH - score_surf.get_width() - 20, 20))
 
     # Refresh obrazovky - vidíš nový frame
     pygame.display.flip()
