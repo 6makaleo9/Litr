@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+import random
 
 # Spustí pygame knihovnu
 pygame.init()
@@ -103,6 +104,85 @@ clock = pygame.time.Clock()
 # Pomocná průhledná plocha - zde si nakreslíme kostku a katanu
 SURF_SIZE   = cube_size * 5  # Velikost plochy
 SURF_CENTER = SURF_SIZE // 2  # Střed plochy
+
+# ─── SYSTÉM POZADÍ ───────────────────────────────────────────────────────────
+
+# Kamenná dlažba - nakreslí se jen jednou do bg_surf pro rychlost
+TILE      = 64           # Velikost jedné dlaždice v pixelech
+TILE_BASE = (22, 22, 28) # Základní tmavě modrošedá barva kamene
+TILE_VAR  = 8            # O kolik se barva každé dlaždice náhodně liší
+GROUT     = (10, 10, 14) # Barva spáry mezi dlaždicemi
+
+bg_surf = pygame.Surface((WIDTH, HEIGHT))  # Plocha na celou obrazovku
+bg_surf.fill(GROUT)                        # Vyplň vše barvou spáry
+rng = random.Random(42)  # Seeded generátor - dlaždice jsou vždy stejné
+for ty in range(0, HEIGHT, TILE):          # Procházej řádky dlaždic
+    for tx in range(0, WIDTH, TILE):       # Procházej sloupce dlaždic
+        v = rng.randint(-TILE_VAR, TILE_VAR)             # Náhodná odchylka barvy
+        col = (TILE_BASE[0]+v, TILE_BASE[1]+v, TILE_BASE[2]+v)  # Výsledná barva
+        col = tuple(max(0, min(255, c)) for c in col)    # Ořízni na 0-255
+        # Nakresli vnitřek dlaždice (1px spára kolem dokola)
+        pygame.draw.rect(bg_surf, col, (tx+1, ty+1, TILE-2, TILE-2))
+        # Světlejší linka vlevo nahoře - simuluje dopad světla
+        hi = tuple(min(255, c+18) for c in col)
+        pygame.draw.line(bg_surf, hi, (tx+1, ty+1), (tx+TILE-2, ty+1))
+        pygame.draw.line(bg_surf, hi, (tx+1, ty+1), (tx+1, ty+TILE-2))
+        # Tmavší linka vpravo dole - simuluje stín
+        sh = tuple(max(0, c-14) for c in col)
+        pygame.draw.line(bg_surf, sh, (tx+1, ty+TILE-2), (tx+TILE-2, ty+TILE-2))
+        pygame.draw.line(bg_surf, sh, (tx+TILE-2, ty+1),  (tx+TILE-2, ty+TILE-2))
+
+# Vinětace - tmavý okraj obrazovky, střed je světlejší
+# Nakreslí se jednou do průhledné plochy, pak se přikládá každý snímek
+vignette_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+cx_v = WIDTH  // 2  # Střed obrazovky X
+cy_v = HEIGHT // 2  # Střed obrazovky Y
+# Vykreslíme 80 vrstev elips od středu ven - každá vrstva je tmavší
+vignette_surf.fill((0, 0, 0, 0))  # Začni s prázdnou (průhlednou) plochou
+for step in range(80):
+    ratio = (80 - step) / 80       # 1 = okraj (tmavé), 0 = střed (světlé)
+    alpha = int(210 * ratio ** 2.5)  # Kvadratický nárůst tmy ke kraji
+    ew    = int(WIDTH  * (step / 80 * 0.95 + 0.05))  # Šířka elipsy
+    eh    = int(HEIGHT * (step / 80 * 0.95 + 0.05))  # Výška elipsy
+    s     = pygame.Surface((ew, eh), pygame.SRCALPHA)  # Dočasná plocha
+    pygame.draw.ellipse(s, (0, 0, 0, alpha), (0, 0, ew, eh))  # Černá elipsa
+    # Přilož elipsu na střed vinětace (BLEND_RGBA_MAX = vezmi nejtmavší)
+    vignette_surf.blit(s, (cx_v - ew//2, cy_v - eh//2), special_flags=pygame.BLEND_RGBA_MAX)
+
+
+
+# Prachové částice - malé světlé tečky pomalu plavající po místnosti
+NUM_DUST = 60  # Kolik částic najednou létá v místnosti
+class DustParticle:
+    def __init__(self, rand=None):
+        r = rand or random
+        self.x     = r.uniform(0, WIDTH)    # Náhodná počáteční pozice X
+        self.y     = r.uniform(0, HEIGHT)   # Náhodná počáteční pozice Y
+        self.size  = r.uniform(1.0, 2.5)    # Velikost tečky (1-2.5 px)
+        self.speed = r.uniform(0.08, 0.35)  # Rychlost pohybu
+        self.angle = r.uniform(0, 360)      # Směr pohybu (stupně)
+        self.drift = r.uniform(-0.3, 0.3)   # Jak moc se směr pomalu otáčí
+        self.alpha = r.randint(30, 90)      # Průhlednost (30=skoro nevidět)
+        self.fade  = r.choice([-1, 1]) * r.uniform(0.2, 0.6)  # Zda mizí nebo se objevuje
+
+    def update(self):
+        rad        = math.radians(self.angle)       # Převod stupňů na radiány
+        self.x    += math.cos(rad) * self.speed     # Pohyb ve směru X
+        self.y    += math.sin(rad) * self.speed     # Pohyb ve směru Y
+        self.angle += self.drift                    # Pomalu měníme směr
+        self.alpha = max(20, min(100, self.alpha + self.fade))  # Průhlednost 20-100
+        if self.alpha in (20, 100):                 # Na krajích otočí fade
+            self.fade = -self.fade
+        # Pokud vyletí z obrazovky, vynoří se na druhé straně
+        if self.x < -5:       self.x = WIDTH  + 5
+        if self.x > WIDTH+5:  self.x = -5
+        if self.y < -5:       self.y = HEIGHT + 5
+        if self.y > HEIGHT+5: self.y = -5
+
+dust_rng       = random.Random(7)  # Vlastní generátor - konzistentní rozmístění
+dust_particles = [DustParticle(dust_rng) for _ in range(NUM_DUST)]  # Vytvoř všechny částice
+dust_surf      = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)   # Průhledná plocha pro kreslení
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Hlavní herní smyčka - běží, dokud hra neběží
 running = True
@@ -376,8 +456,23 @@ while running:
     ]
 
     # VYKRESLOVÁNÍ - co vidíš na obrazovce
-    # Smaž obrazovku (černou barvou)
-    screen.fill(BLACK)
+    # ─── Pozadí ───────────────────────────────────────────────────────────────
+    # 1. Kamenná dlažba jako základ
+    screen.blit(bg_surf, (0, 0))
+
+    # 2. Prachové částice - animuj a nakresli každou tečku
+    dust_surf.fill((0, 0, 0, 0))  # Vymazat staré pozice (průhledné pozadí)
+    for dp in dust_particles:
+        dp.update()               # Posuň částici o jeden snímek
+        r = int(dp.size)          # Zaokrouhli velikost na celé číslo
+        if r < 1: r = 1           # Minimálně 1 pixel
+        pygame.draw.circle(dust_surf, (200, 210, 230, int(dp.alpha)),
+                           (int(dp.x), int(dp.y)), r)  # Nakresli světlou tečku
+    screen.blit(dust_surf, (0, 0))  # Přilož všechny částice na obrazovku
+
+    # 3. Vinětace - tmavý okraj přes celou obrazovku (kreslí se jako poslední vrstva pozadí)
+    screen.blit(vignette_surf, (0, 0))
+    # ─────────────────────────────────────────────────────────────────────────
 
     # Nakresli respawn checkpoint (zelená krabička vpravo)
     # Ale jen když jsou všichni nepřátelé poraženi
