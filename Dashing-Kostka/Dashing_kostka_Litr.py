@@ -74,7 +74,25 @@ show_hitboxes = False  # Zobrazit hitboxy? (H klávesa)
 
 # Počitadlo Dokončených levelů
 level_completed = 0
-font = pygame.font.SysFont(None, 48)
+font        = pygame.font.SysFont(None, 48)
+
+# ─── HERNÍ STAV ──────────────────────────────────────────────────────────────
+# Hra může být v menu nebo ve hře
+GAME_STATE_MENU     = "menu"
+GAME_STATE_PLAYING  = "playing"
+GAME_STATE_SETTINGS = "settings"
+game_state = GAME_STATE_MENU  # Začínáme v menu
+
+# ─── FONTY PRO MENU ──────────────────────────────────────────────────────────
+font_title    = pygame.font.SysFont('impact', 120)  # Velký název hry
+font_subtitle = pygame.font.SysFont(None, 42)   # Podtitulek
+font_controls = pygame.font.SysFont(None, 32)   # Ovládání
+font_button   = pygame.font.SysFont(None, 52)   # Text tlačítka
+
+# ─── ANIMACE TLAČÍTKA PLAY ───────────────────────────────────────────────────
+btn_hover       = False   # Je myš nad tlačítkem?
+btn_hover_scale = 1.0     # Aktuální velikost tlačítka (animace)
+btn_pulse_t     = 0.0     # Čítač pro pulzování tlačítka
 
 
 # Útok - zranění
@@ -193,10 +211,51 @@ while running:
         if event.type == pygame.QUIT:
             running = False  # Zavření okna = konec hry
 
-        # Klávesa ESC = konec hry
+        # Klávesa ESC = konec hry nebo návrat do menu
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            running = False
+            if game_state == GAME_STATE_PLAYING:
+                game_state = GAME_STATE_MENU  # Vrátit se do menu
+            else:
+                running = False  # Z menu = konec hry
 
+        # ─── MENU VSTUPY ──────────────────────────────────────────────────────
+        if game_state == GAME_STATE_MENU:
+            # Enter nebo Space = spustit hru
+            if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                game_state = GAME_STATE_PLAYING
+            # Klik myší - zkontroluj jestli klikl na Resume tlačítko
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mx_btn, my_btn = pygame.mouse.get_pos()
+                # Souřadnice tlačítka Resume (zarovnáno vlevo s textem)
+                btn_w, btn_h = 300, 60
+                btn_x = 40
+                btn_y = (HEIGHT // 2) - (btn_h // 2)
+                resume_btn_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+                if resume_btn_rect.collidepoint(mx_btn, my_btn):
+                    game_state = GAME_STATE_PLAYING
+                
+                # Tlačítko New Game (zatím nic nedělá)
+                new_game_y = btn_y + btn_h + 20
+                new_game_btn_rect = pygame.Rect(btn_x, new_game_y, btn_w, btn_h)
+                if new_game_btn_rect.collidepoint(mx_btn, my_btn):
+                    pass # Zde bude restart hry
+
+                # Tlačítko Settings
+                settings_y = new_game_y + btn_h + 20
+                settings_btn_rect = pygame.Rect(btn_x, settings_y, btn_w, btn_h)
+                if settings_btn_rect.collidepoint(mx_btn, my_btn):
+                    game_state = GAME_STATE_SETTINGS
+            continue  # Přeskoč zbytek event smyčky pokud jsme v menu
+
+        # ─── SETTINGS VSTUPY ──────────────────────────────────────────────────
+        if game_state == GAME_STATE_SETTINGS:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                game_state = GAME_STATE_MENU
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                game_state = GAME_STATE_MENU  # Kliknutí kamkoliv vrací zpět
+            continue
+
+        # ─── HERNÍ VSTUPY ─────────────────────────────────────────────────────
         # Klávesa H = zapni/vypni zobrazení hitboxů (pro debug)
         if event.type == pygame.KEYDOWN and event.key == pygame.K_h:
             show_hitboxes = not show_hitboxes
@@ -236,6 +295,103 @@ while running:
                 # Pokud je plně nabito, způsobí více zranění
                 attack_damage = 5 if charge_factor >= 1.0 else 1
                 enemies_hit_this_slash.clear()  # Vyčisti seznam zasažených nepřátel
+
+    # ─── VYKRESLENÍ MENU ──────────────────────────────────────────────────────
+    if game_state == GAME_STATE_MENU:
+        # Pozadí (dlažba + prach + vinětace) - pravá strana viditelná
+        screen.blit(bg_surf, (0, 0))
+        dust_surf.fill((0, 0, 0, 0))
+        for dp in dust_particles:
+            dp.update()
+            r = max(1, int(dp.size))
+            pygame.draw.circle(dust_surf, (200, 210, 230, int(dp.alpha)),
+                               (int(dp.x), int(dp.y)), r)
+        screen.blit(dust_surf, (0, 0))
+        screen.blit(vignette_surf, (0, 0))
+
+        # Černý čtverec přes celou levou polovinu obrazovky
+        panel_w = WIDTH // 2
+        pygame.draw.rect(screen, BLACK, (0, 0, panel_w, HEIGHT))
+
+        # Černý pravoúhlý trojúhelník překrývající horní část pravé strany
+        # Pravý úhel je v bodě (WIDTH//2, 0) - levý horní roh pravé poloviny
+        # Jedna strana jde vpravo podél horní hrany, druhá dolů podél středu
+        pygame.draw.polygon(screen, BLACK, [
+            (panel_w,  0),       # 90° roh - levý horní roh pravé poloviny
+            (WIDTH,    0),       # pravý horní roh obrazovky
+            (panel_w,  HEIGHT),  # levý dolní roh pravé poloviny
+        ])
+
+        # Text názvu hry na levé straně
+        title_surf = font_title.render("DASHING KOSTKA", True, WHITE)
+        screen.blit(title_surf, (40, 40))
+
+        # Tlačítko Resume Game - zarovnáno vlevo s názvem
+        resume_text = font_button.render("Resume Game", True, WHITE)
+        btn_w, btn_h = 300, 60
+        btn_x = 40
+        btn_y = (HEIGHT // 2) - (btn_h // 2)
+        resume_btn_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+        
+        pygame.draw.rect(screen, (40, 40, 40), resume_btn_rect)  # Tmavé pozadí
+        pygame.draw.rect(screen, (100, 100, 100), resume_btn_rect, 2)  # Šedý okraj
+        screen.blit(resume_text, (resume_btn_rect.centerx - resume_text.get_width() // 2,
+                                  resume_btn_rect.centery - resume_text.get_height() // 2))
+
+        # Tlačítko New Game - pod Resume Game
+        new_game_text = font_button.render("New Game", True, WHITE)
+        new_game_y = btn_y + btn_h + 20
+        new_game_btn_rect = pygame.Rect(btn_x, new_game_y, btn_w, btn_h)
+        pygame.draw.rect(screen, (40, 40, 40), new_game_btn_rect)
+        pygame.draw.rect(screen, (100, 100, 100), new_game_btn_rect, 2)
+        screen.blit(new_game_text, (new_game_btn_rect.centerx - new_game_text.get_width() // 2,
+                                     new_game_btn_rect.centery - new_game_text.get_height() // 2))
+        
+        # Tlačítko Settings - pod New Game
+        settings_text = font_button.render("Settings", True, WHITE)
+        settings_y = new_game_y + btn_h + 20
+        settings_btn_rect = pygame.Rect(btn_x, settings_y, btn_w, btn_h)
+        
+        pygame.draw.rect(screen, (40, 40, 40), settings_btn_rect)  # Tmavé pozadí
+        pygame.draw.rect(screen, (100, 100, 100), settings_btn_rect, 2)  # Šedý okraj
+        screen.blit(settings_text, (settings_btn_rect.centerx - settings_text.get_width() // 2,
+                                     settings_btn_rect.centery - settings_text.get_height() // 2))
+
+        pygame.display.flip()
+        clock.tick(60)
+        continue  # Přeskoč zbytek herní smyčky - ještě nehrajeme
+
+    # ─── VYKRESLENÍ SETTINGS ──────────────────────────────────────────────────
+    if game_state == GAME_STATE_SETTINGS:
+        # Pozadí (dlažba + prach + vinětace)
+        screen.blit(bg_surf, (0, 0))
+        dust_surf.fill((0, 0, 0, 0))
+        for dp in dust_particles:
+            dp.update()
+            r = max(1, int(dp.size))
+            pygame.draw.circle(dust_surf, (200, 210, 230, int(dp.alpha)),
+                               (int(dp.x), int(dp.y)), r)
+        screen.blit(dust_surf, (0, 0))
+        screen.blit(vignette_surf, (0, 0))
+
+        # Centrální čtverec Settings
+        s_w, s_h = 600, 400
+        s_rect = pygame.Rect(WIDTH // 2 - s_w // 2, HEIGHT // 2 - s_h // 2, s_w, s_h)
+        pygame.draw.rect(screen, BLACK, s_rect)
+        pygame.draw.rect(screen, (150, 150, 150), s_rect, 4) # Šedý obrys
+
+        # Text "Comming Soon..."
+        soon_text = font_title.render("Comming Soon...", True, WHITE)
+        screen.blit(soon_text, (s_rect.centerx - soon_text.get_width() // 2,
+                                s_rect.centery - soon_text.get_height() // 2))
+        
+        # Nápověda pro návrat
+        back_text = font_controls.render("Click anywhere to return", True, (150, 150, 150))
+        screen.blit(back_text, (s_rect.centerx - back_text.get_width() // 2, s_rect.bottom + 20))
+
+        pygame.display.flip()
+        clock.tick(60)
+        continue
 
     # POHYB KOSTKY - hráčův modrý čtverec se pohybuje
     cube_x += vel_x  # Přidej rychlost X
