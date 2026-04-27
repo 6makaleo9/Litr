@@ -11,8 +11,8 @@ screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 WIDTH, HEIGHT = screen.get_size()  # Rozměr okna
 pygame.display.set_caption("Dashing Kostka")
 
-# Barvy (červená, zelená, modrá)
-BLACK        = (0,   0,   0)
+# Barvy 
+BLACK        = (0,   0,   0)     
 RED          = (255, 0,   0)
 BLUE         = (30,  90,  220)   # sytější modrá kostka
 BLUE_DARK    = (15,  45,  130)   # tmavší okraj kostky
@@ -75,6 +75,7 @@ show_hitboxes = False  # Zobrazit hitboxy? (H klávesa)
 # Počitadlo Dokončených levelů
 level_completed = 0
 font = pygame.font.SysFont(None, 48)
+
 
 # Útok - zranění
 attack_damage = 1  # Kolik bodů zranění způsobí útok
@@ -152,7 +153,7 @@ for step in range(80):
 
 
 # Prachové částice - malé světlé tečky pomalu plavající po místnosti
-NUM_DUST = 60  # Kolik částic najednou létá v místnosti
+NUM_DUST = 500  # Kolik částic najednou létá v místnosti
 class DustParticle:
     def __init__(self, rand=None):
         r = rand or random
