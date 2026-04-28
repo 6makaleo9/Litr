@@ -81,6 +81,7 @@ font        = pygame.font.SysFont(None, 48)
 GAME_STATE_MENU     = "menu"
 GAME_STATE_PLAYING  = "playing"
 GAME_STATE_SETTINGS = "settings"
+GAME_STATE_PAUSED   = "paused"
 game_state = GAME_STATE_MENU  # Začínáme v menu
 
 # ─── FONTY PRO MENU ──────────────────────────────────────────────────────────
@@ -211,12 +212,12 @@ while running:
         if event.type == pygame.QUIT:
             running = False  # Zavření okna = konec hry
 
-        # Klávesa ESC = konec hry nebo návrat do menu
+        # Klávesa ESC = pauza z hry
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             if game_state == GAME_STATE_PLAYING:
-                game_state = GAME_STATE_MENU  # Vrátit se do menu
-            else:
-                running = False  # Z menu = konec hry
+                game_state = GAME_STATE_PAUSED  # Zapauzovat hru
+            elif game_state == GAME_STATE_PAUSED:
+                game_state = GAME_STATE_PLAYING  # Pokračovat v hře
 
         # ─── MENU VSTUPY ──────────────────────────────────────────────────────
         if game_state == GAME_STATE_MENU:
@@ -245,6 +246,12 @@ while running:
                 settings_btn_rect = pygame.Rect(btn_x, settings_y, btn_w, btn_h)
                 if settings_btn_rect.collidepoint(mx_btn, my_btn):
                     game_state = GAME_STATE_SETTINGS
+
+                # Tlačítko Quit
+                quit_y = settings_y + btn_h + 20
+                quit_btn_rect = pygame.Rect(btn_x, quit_y, btn_w, btn_h)
+                if quit_btn_rect.collidepoint(mx_btn, my_btn):
+                    running = False
             continue  # Přeskoč zbytek event smyčky pokud jsme v menu
 
         # ─── SETTINGS VSTUPY ──────────────────────────────────────────────────
@@ -253,6 +260,30 @@ while running:
                 game_state = GAME_STATE_MENU
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 game_state = GAME_STATE_MENU  # Kliknutí kamkoliv vrací zpět
+            continue
+
+        # ─── PAUSE MENU VSTUPY ────────────────────────────────────────────────
+        if game_state == GAME_STATE_PAUSED:
+            # Klik myší - zkontroluj jestli klikl na Resume tlačítko
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mx_btn, my_btn = pygame.mouse.get_pos()
+                # Souřadnice panelu (musí odpovídat renderovacímu kódu)
+                p_w, p_h = 600, 400
+                p_rect = pygame.Rect(WIDTH // 2 - p_w // 2, HEIGHT // 2 - p_h // 2, p_w, p_h)
+                
+                # Souřadnice tlačítka Resume
+                btn_w, btn_h = 250, 50
+                btn_x = p_rect.centerx - btn_w // 2
+                btn_y = p_rect.centery - 40
+                resume_btn_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+                if resume_btn_rect.collidepoint(mx_btn, my_btn):
+                    game_state = GAME_STATE_PLAYING
+                
+                # Tlačítko Back to Main Menu
+                back_y = btn_y + btn_h + 20
+                back_btn_rect = pygame.Rect(btn_x, back_y, btn_w, btn_h)
+                if back_btn_rect.collidepoint(mx_btn, my_btn):
+                    game_state = GAME_STATE_MENU
             continue
 
         # ─── HERNÍ VSTUPY ─────────────────────────────────────────────────────
@@ -357,9 +388,69 @@ while running:
         screen.blit(settings_text, (settings_btn_rect.centerx - settings_text.get_width() // 2,
                                      settings_btn_rect.centery - settings_text.get_height() // 2))
 
+        # Tlačítko Quit - pod Settings
+        quit_text = font_button.render("Quit", True, WHITE)
+        quit_y = settings_y + btn_h + 20
+        quit_btn_rect = pygame.Rect(btn_x, quit_y, btn_w, btn_h)
+        
+        pygame.draw.rect(screen, (40, 40, 40), quit_btn_rect)  # Tmavé pozadí
+        pygame.draw.rect(screen, (100, 100, 100), quit_btn_rect, 2)  # Šedý okraj
+        screen.blit(quit_text, (quit_btn_rect.centerx - quit_text.get_width() // 2,
+                                quit_btn_rect.centery - quit_text.get_height() // 2))
+
         pygame.display.flip()
         clock.tick(60)
         continue  # Přeskoč zbytek herní smyčky - ještě nehrajeme
+
+    # ─── VYKRESLENÍ PAUSE MENU ────────────────────────────────────────────────
+    if game_state == GAME_STATE_PAUSED:
+        # Pozadí (dlažba + prach + vinětace)
+        screen.blit(bg_surf, (0, 0))
+        dust_surf.fill((0, 0, 0, 0))
+        for dp in dust_particles:
+            dp.update()
+            r = max(1, int(dp.size))
+            pygame.draw.circle(dust_surf, (200, 210, 230, int(dp.alpha)),
+                               (int(dp.x), int(dp.y)), r)
+        screen.blit(dust_surf, (0, 0))
+        screen.blit(vignette_surf, (0, 0))
+
+        # Centrální čtverec Pause Menu
+        p_w, p_h = 600, 400
+        p_rect = pygame.Rect(WIDTH // 2 - p_w // 2, HEIGHT // 2 - p_h // 2, p_w, p_h)
+        pygame.draw.rect(screen, BLACK, p_rect)
+        pygame.draw.rect(screen, (150, 150, 150), p_rect, 4)  # Šedý obrys
+
+        # Text "PAUSED" - na horní části panelu
+        paused_text = font_title.render("PAUSED", True, WHITE)
+        screen.blit(paused_text, (p_rect.centerx - paused_text.get_width() // 2,
+                                  p_rect.top + 20))
+
+        # Tlačítko Resume - pod textem
+        resume_text = font_button.render("Resume", True, WHITE)
+        btn_w, btn_h = 250, 50
+        btn_x = p_rect.centerx - btn_w // 2
+        btn_y = p_rect.centery - 40
+        resume_btn_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+        
+        pygame.draw.rect(screen, (40, 40, 40), resume_btn_rect)  # Tmavé pozadí
+        pygame.draw.rect(screen, (100, 100, 100), resume_btn_rect, 2)  # Šedý okraj
+        screen.blit(resume_text, (resume_btn_rect.centerx - resume_text.get_width() // 2,
+                                  resume_btn_rect.centery - resume_text.get_height() // 2))
+
+        # Tlačítko Back to Main Menu
+        back_to_menu_text = font_button.render("Back to Menu", True, WHITE)
+        back_y = btn_y + btn_h + 20
+        back_btn_rect = pygame.Rect(btn_x, back_y, btn_w, btn_h)
+        
+        pygame.draw.rect(screen, (40, 40, 40), back_btn_rect)  # Tmavé pozadí
+        pygame.draw.rect(screen, (100, 100, 100), back_btn_rect, 2)  # Šedý okraj
+        screen.blit(back_to_menu_text, (back_btn_rect.centerx - back_to_menu_text.get_width() // 2,
+                                        back_btn_rect.centery - back_to_menu_text.get_height() // 2))
+
+        pygame.display.flip()
+        clock.tick(60)
+        continue  # Přeskoč zbytek herní smyčky - jsme v pauze
 
     # ─── VYKRESLENÍ SETTINGS ──────────────────────────────────────────────────
     if game_state == GAME_STATE_SETTINGS:
@@ -638,11 +729,31 @@ while running:
         pygame.draw.rect(screen, RESPAWN_COLOR, respawn_rect)  # Zelené vyplnění
         pygame.draw.rect(screen, WHITE, respawn_rect, 2)  # Bílý okraj
 
-    # Nakresli všechny nepřátele (bílé čtverce) a jejich zdravotní lišty
+    # Nakresli všechny nepřátele (skeletony) a jejich zdravotní lišty
     for enemy in enemies:
-        # Telo nepřítele
+        # Telo nepřítele - základní čtverec
         enemy_rect = pygame.Rect(enemy.x, enemy.y, enemy.size, enemy.size)
         pygame.draw.rect(screen, enemy.color, enemy_rect)
+        pygame.draw.rect(screen, (255, 255, 255), enemy_rect, 2)  # Bílý okraj pro definici
+        
+        # Oči - dva černé kruhy
+        eye_size = 6
+        eye_offset_x = enemy.size // 4
+        eye_offset_y = enemy.size // 3
+        pygame.draw.circle(screen, (0, 0, 0), 
+                          (int(enemy.x + eye_offset_x), int(enemy.y + eye_offset_y)), eye_size)
+        pygame.draw.circle(screen, (0, 0, 0), 
+                          (int(enemy.x + enemy.size - eye_offset_x), int(enemy.y + eye_offset_y)), eye_size)
+        
+        # Nos - malý trojúhelník uprostřed
+        nose_x = enemy.x + enemy.size // 2
+        nose_y = enemy.y + enemy.size // 2
+        nose_size = 4
+        pygame.draw.polygon(screen, (0, 0, 0), [
+            (nose_x, nose_y - nose_size),
+            (nose_x - nose_size, nose_y + nose_size),
+            (nose_x + nose_size, nose_y + nose_size)
+        ])
         
         # Zdravotní lišta nad nepřítelem
         bar_w = int(enemy.size * (enemy.hp / enemy.max_hp))  # Kolik % zdraví
