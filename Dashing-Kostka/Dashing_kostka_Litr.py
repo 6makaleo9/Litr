@@ -2,6 +2,8 @@ import pygame
 import sys
 import math
 import random
+import json
+import os
 
 # Spustí pygame knihovnu
 pygame.init()
@@ -73,7 +75,26 @@ charge_start_ticks = 0  # Kdy začalo nabíjení?
 show_hitboxes = False  # Zobrazit hitboxy? (H klávesa)
 
 # Počitadlo Dokončených levelů
-level_completed = 0
+# ─── ULOŽENÁ HRA ──────────────────────────────────────────────────────────────
+SAVE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "savegame.json")
+
+def save_game(level):
+    """Uloží postup hry do souboru"""
+    with open(SAVE_FILE, "w") as f:
+        json.dump({"level_completed": level}, f)
+
+def load_game():
+    """Načte uložený postup hry, nebo vrátí 0 pokud soubor neexistuje"""
+    if os.path.exists(SAVE_FILE):
+        try:
+            with open(SAVE_FILE, "r") as f:
+                data = json.load(f)
+                return int(data.get("level_completed", 0))
+        except (json.JSONDecodeError, KeyError, ValueError):
+            return 0
+    return 0
+
+level_completed = load_game()  # Načti uložený postup
 font        = pygame.font.SysFont(None, 48)
 
 # ─── HERNÍ STAV ──────────────────────────────────────────────────────────────
@@ -235,11 +256,21 @@ while running:
                 if resume_btn_rect.collidepoint(mx_btn, my_btn):
                     game_state = GAME_STATE_PLAYING
                 
-                # Tlačítko New Game (zatím nic nedělá)
+                # Tlačítko New Game - resetuje hru a uloží nulu
                 new_game_y = btn_y + btn_h + 20
                 new_game_btn_rect = pygame.Rect(btn_x, new_game_y, btn_w, btn_h)
                 if new_game_btn_rect.collidepoint(mx_btn, my_btn):
-                    pass # Zde bude restart hry
+                    # Resetuj veškerý stav hry
+                    level_completed = 0
+                    save_game(level_completed)
+                    cube_x = float(START_X)
+                    cube_y = float(START_Y)
+                    vel_x = 0.0
+                    vel_y = 0.0
+                    enemies = [Enemy(x, y) for x, y in INITIAL_ENEMIES]
+                    slash_timer = 0
+                    enemies_hit_this_slash.clear()
+                    game_state = GAME_STATE_PLAYING
 
                 # Tlačítko Settings
                 settings_y = new_game_y + btn_h + 20
@@ -357,6 +388,9 @@ while running:
         title_surf = font_title.render("DASHING KOSTKA", True, WHITE)
         screen.blit(title_surf, (40, 40))
 
+        # Poloha myši pro hover efekty tlačítek
+        mx_hover, my_hover = pygame.mouse.get_pos()
+
         # Tlačítko Resume Game - zarovnáno vlevo s názvem
         resume_text = font_button.render("Resume Game", True, WHITE)
         btn_w, btn_h = 300, 60
@@ -364,8 +398,9 @@ while running:
         btn_y = (HEIGHT // 2) - (btn_h // 2)
         resume_btn_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
         
-        pygame.draw.rect(screen, (40, 40, 40), resume_btn_rect)  # Tmavé pozadí
-        pygame.draw.rect(screen, (100, 100, 100), resume_btn_rect, 2)  # Šedý okraj
+        if resume_btn_rect.collidepoint(mx_hover, my_hover):  # Pozadí a okraj jen při hoveru
+            pygame.draw.rect(screen, (20, 20, 20), resume_btn_rect)
+            pygame.draw.rect(screen, (70, 70, 70), resume_btn_rect, 2)
         screen.blit(resume_text, (resume_btn_rect.centerx - resume_text.get_width() // 2,
                                   resume_btn_rect.centery - resume_text.get_height() // 2))
 
@@ -373,8 +408,9 @@ while running:
         new_game_text = font_button.render("New Game", True, WHITE)
         new_game_y = btn_y + btn_h + 20
         new_game_btn_rect = pygame.Rect(btn_x, new_game_y, btn_w, btn_h)
-        pygame.draw.rect(screen, (40, 40, 40), new_game_btn_rect)
-        pygame.draw.rect(screen, (100, 100, 100), new_game_btn_rect, 2)
+        if new_game_btn_rect.collidepoint(mx_hover, my_hover):  # Pozadí a okraj jen při hoveru
+            pygame.draw.rect(screen, (20, 20, 20), new_game_btn_rect)
+            pygame.draw.rect(screen, (70, 70, 70), new_game_btn_rect, 2)
         screen.blit(new_game_text, (new_game_btn_rect.centerx - new_game_text.get_width() // 2,
                                      new_game_btn_rect.centery - new_game_text.get_height() // 2))
         
@@ -383,8 +419,9 @@ while running:
         settings_y = new_game_y + btn_h + 20
         settings_btn_rect = pygame.Rect(btn_x, settings_y, btn_w, btn_h)
         
-        pygame.draw.rect(screen, (40, 40, 40), settings_btn_rect)  # Tmavé pozadí
-        pygame.draw.rect(screen, (100, 100, 100), settings_btn_rect, 2)  # Šedý okraj
+        if settings_btn_rect.collidepoint(mx_hover, my_hover):  # Pozadí a okraj jen při hoveru
+            pygame.draw.rect(screen, (20, 20, 20), settings_btn_rect)
+            pygame.draw.rect(screen, (70, 70, 70), settings_btn_rect, 2)
         screen.blit(settings_text, (settings_btn_rect.centerx - settings_text.get_width() // 2,
                                      settings_btn_rect.centery - settings_text.get_height() // 2))
 
@@ -393,8 +430,9 @@ while running:
         quit_y = settings_y + btn_h + 20
         quit_btn_rect = pygame.Rect(btn_x, quit_y, btn_w, btn_h)
         
-        pygame.draw.rect(screen, (40, 40, 40), quit_btn_rect)  # Tmavé pozadí
-        pygame.draw.rect(screen, (100, 100, 100), quit_btn_rect, 2)  # Šedý okraj
+        if quit_btn_rect.collidepoint(mx_hover, my_hover):  # Pozadí a okraj jen při hoveru
+            pygame.draw.rect(screen, (20, 20, 20), quit_btn_rect)
+            pygame.draw.rect(screen, (70, 70, 70), quit_btn_rect, 2)
         screen.blit(quit_text, (quit_btn_rect.centerx - quit_text.get_width() // 2,
                                 quit_btn_rect.centery - quit_text.get_height() // 2))
 
@@ -426,6 +464,9 @@ while running:
         screen.blit(paused_text, (p_rect.centerx - paused_text.get_width() // 2,
                                   p_rect.top + 20))
 
+        # Poloha myši pro hover efekty tlačítek pauzy
+        mx_hover, my_hover = pygame.mouse.get_pos()
+
         # Tlačítko Resume - pod textem
         resume_text = font_button.render("Resume", True, WHITE)
         btn_w, btn_h = 250, 50
@@ -433,8 +474,9 @@ while running:
         btn_y = p_rect.centery - 40
         resume_btn_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
         
-        pygame.draw.rect(screen, (40, 40, 40), resume_btn_rect)  # Tmavé pozadí
-        pygame.draw.rect(screen, (100, 100, 100), resume_btn_rect, 2)  # Šedý okraj
+        if resume_btn_rect.collidepoint(mx_hover, my_hover):  # Pozadí a okraj jen při hoveru
+            pygame.draw.rect(screen, (20, 20, 20), resume_btn_rect)
+            pygame.draw.rect(screen, (70, 70, 70), resume_btn_rect, 2)
         screen.blit(resume_text, (resume_btn_rect.centerx - resume_text.get_width() // 2,
                                   resume_btn_rect.centery - resume_text.get_height() // 2))
 
@@ -443,8 +485,9 @@ while running:
         back_y = btn_y + btn_h + 20
         back_btn_rect = pygame.Rect(btn_x, back_y, btn_w, btn_h)
         
-        pygame.draw.rect(screen, (40, 40, 40), back_btn_rect)  # Tmavé pozadí
-        pygame.draw.rect(screen, (100, 100, 100), back_btn_rect, 2)  # Šedý okraj
+        if back_btn_rect.collidepoint(mx_hover, my_hover):  # Pozadí a okraj jen při hoveru
+            pygame.draw.rect(screen, (20, 20, 20), back_btn_rect)
+            pygame.draw.rect(screen, (70, 70, 70), back_btn_rect, 2)
         screen.blit(back_to_menu_text, (back_btn_rect.centerx - back_to_menu_text.get_width() // 2,
                                         back_btn_rect.centery - back_to_menu_text.get_height() // 2))
 
@@ -504,8 +547,9 @@ while running:
         cube_x + cube_size > respawn_x and
         cube_y < respawn_y + RESPAWN_HEIGHT and 
         cube_y + cube_size > respawn_y):  # Kontrola dotyku
-        # Přidej skóre
+        # Přidej skóre a ulož postup
         level_completed += 1
+        save_game(level_completed)
         
         # Přeskoč kostku zpět na start
         cube_x = float(START_X)
