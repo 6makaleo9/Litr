@@ -74,6 +74,13 @@ is_charging = False  # Nabíjí se teď dash?
 charge_start_ticks = 0  # Kdy začalo nabíjení?
 show_hitboxes = False  # Zobrazit hitboxy? (H klávesa)
 
+# ─── ZDRAVÍ HRÁČE ────────────────────────────────────────────────────────────
+PLAYER_MAX_HP      = 5    # Maximální počet životů
+player_hp          = PLAYER_MAX_HP  # Aktuální životy
+PLAYER_INVINCIBLE_FRAMES = 90  # Počet snímků nezranitelnosti po zásahu (~1.5 s)
+player_invincible  = 0    # Zbývající snímky nezranitelnosti (0 = zranitelný)
+PLAYER_DAMAGE      = 1    # Zranění způsobené nepřítelem při dotyku
+
 # Počitadlo Dokončených levelů
 # ─── ULOŽENÁ HRA ──────────────────────────────────────────────────────────────
 SAVE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "savegame.json")
@@ -270,6 +277,8 @@ while running:
                     enemies = [Enemy(x, y) for x, y in INITIAL_ENEMIES]
                     slash_timer = 0
                     enemies_hit_this_slash.clear()
+                    player_hp = PLAYER_MAX_HP          # Obnov zdraví hráče
+                    player_invincible = 0              # Zruš nezranitelnost
                     game_state = GAME_STATE_PLAYING
 
                 # Tlačítko Settings
@@ -561,10 +570,20 @@ while running:
         enemies = [Enemy(x, y) for x, y in INITIAL_ENEMIES]
         slash_timer = 0  # Zastavit animaci
         enemies_hit_this_slash.clear()  # Vyčisti seznam
+        player_hp = min(PLAYER_MAX_HP, player_hp + 1)  # Obnov 1 HP za dokončení levelu
+        player_invincible = 0       # Zruš nezranitelnost
 
     # AI NEPŘÁTEL - jak se nepřátelé pohybují
     cx = cube_x + cube_size / 2  # Střed kostky
     cy = cube_y + cube_size / 2  # Střed kostky
+
+    # Nezranitelnost při dashu - pokud je hráč ve vysoké rychlosti, je nezranitelný
+    DASH_INVINCIBLE_THRESHOLD = 8.0  # Minimální rychlost pro nezranitelnost při dashu
+    is_dashing = math.hypot(vel_x, vel_y) > DASH_INVINCIBLE_THRESHOLD
+
+    # Odpočet nezranitelnosti hráče (neodpočítává se během dashu)
+    if player_invincible > 0 and not is_dashing:
+        player_invincible -= 1
     
     for enemy in enemies:
         ecx = enemy.x + enemy.size / 2  # Střed nepřítele
@@ -585,10 +604,29 @@ while running:
                 if dist > (cube_size / 2 + enemy.size / 2 - 5):
                     enemy.x += dx * ENEMY_SPEED
                     enemy.y += dy * ENEMY_SPEED
+
+        # KONTAKTNÍ ZRANĚNÍ - nepřítel se dotkl hráče?
+        # Při dashu je hráč nezranitelný
+        player_rect = pygame.Rect(cube_x, cube_y, cube_size, cube_size)
+        enemy_rect_col = pygame.Rect(enemy.x, enemy.y, enemy.size, enemy.size)
+        if player_rect.colliderect(enemy_rect_col) and player_invincible == 0 and not is_dashing:
+            player_hp -= PLAYER_DAMAGE          # Odeber život
+            player_invincible = PLAYER_INVINCIBLE_FRAMES  # Nastav nezranitelnost
                     
         # Nepřítel se nemůže jít mimo obrazovku
         enemy.x = max(0, min(WIDTH - enemy.size, enemy.x))
         enemy.y = max(0, min(HEIGHT - enemy.size, enemy.y))
+
+    # SMRT HRÁČE - žádné životy? Respawn na start
+    if player_hp <= 0:
+        player_hp = PLAYER_MAX_HP           # Obnov životy
+        player_invincible = PLAYER_INVINCIBLE_FRAMES  # Krátká nezranitelnost po respawnu
+        cube_x = float(START_X)             # Přeskoč na start
+        cube_y = float(START_Y)
+        vel_x = 0.0
+        vel_y = 0.0
+        slash_timer = 0
+        enemies_hit_this_slash.clear()
 
     # ROTACE KE KURZORU - otáčej katanu tak aby ukazovala na myš
     cx = cube_x + cube_size / 2  # Střed kostky X
@@ -892,6 +930,23 @@ while running:
     # Vykresli skóre vpravo nahoře
     score_surf = font.render(f"Level Reached: {level_completed}", True, WHITE)
     screen.blit(score_surf, (WIDTH - score_surf.get_width() - 20, 20))
+
+    # ─── HUD ZDRAVÍ HRÁČE (vlevo dole) ───────────────────────────────────────
+    heart_size = 38                 # Velikost jednoho srdce
+    heart_gap  = 12                 # Mezera mezi srdci
+    hp_label   = font_button.render("HP", True, (200, 200, 200))
+    hud_y      = HEIGHT - heart_size - 28  # Dolní okraj s odsazením
+    hud_x      = 24                        # Levý okraj
+    screen.blit(hp_label, (hud_x, hud_y + (heart_size - hp_label.get_height()) // 2))
+    # Nakresli srdce - plná (červená) nebo prázdná (šedá)
+    for i in range(PLAYER_MAX_HP):
+        hx = hud_x + hp_label.get_width() + 14 + i * (heart_size + heart_gap)
+        hy = hud_y
+        color_heart  = (220, 50, 50) if i < player_hp else (55, 55, 65)
+        border_color = (255, 130, 130) if i < player_hp else (85, 85, 95)
+        pygame.draw.circle(screen, color_heart,  (hx + heart_size // 2, hy + heart_size // 2), heart_size // 2)
+        pygame.draw.circle(screen, border_color, (hx + heart_size // 2, hy + heart_size // 2), heart_size // 2, 3)
+    # ─────────────────────────────────────────────────────────────────────────
 
     # Refresh obrazovky - vidíš nový frame
     pygame.display.flip()
