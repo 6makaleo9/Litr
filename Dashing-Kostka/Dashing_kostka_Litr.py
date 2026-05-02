@@ -41,6 +41,65 @@ ENEMY_SPEED = 1.0
 # Jak daleko vidí nepřítel (radius dohledu v pixelech)
 SPOT_RADIUS = 500
 
+# ─── EFEKT PRASKÁNÍ SKELETU ────────────────────────────────
+# Definuje předem vyrobené trhliny pro každou fázi poškození (0 = žádné, 4 = max).
+# Každá trhlina je seznam úseček [(x1,y1,x2,y2), ...] v normalizovaných souřadnicích (0.0–1.0).
+_CRACK_STAGES = [
+    # Stupeň 1 - jedna trhlina shora dolů
+    [
+        (0.50, 0.00, 0.52, 0.45),
+        (0.52, 0.45, 0.48, 0.80),
+    ],
+    # Stupeň 2 - dvě trhliny ze shora
+    [
+        (0.50, 0.00, 0.52, 0.45),
+        (0.52, 0.45, 0.48, 0.80),
+        (0.52, 0.45, 0.70, 0.75),
+    ],
+    # Stupeň 3 - tři větve shora dolů
+    [
+        (0.50, 0.00, 0.53, 0.40),
+        (0.53, 0.40, 0.46, 0.80),
+        (0.53, 0.40, 0.72, 0.78),
+        (0.30, 0.00, 0.35, 0.35),
+        (0.35, 0.35, 0.28, 0.70),
+    ],
+    # Stupeň 4 - mnoho trhlin shora až na dno
+    [
+        (0.50, 0.00, 0.53, 0.38),
+        (0.53, 0.38, 0.44, 0.75),
+        (0.44, 0.75, 0.48, 1.00),
+        (0.53, 0.38, 0.74, 0.72),
+        (0.74, 0.72, 0.78, 1.00),
+        (0.30, 0.00, 0.34, 0.32),
+        (0.34, 0.32, 0.25, 0.68),
+        (0.25, 0.68, 0.22, 1.00),
+        (0.34, 0.32, 0.50, 0.60),
+        (0.70, 0.00, 0.68, 0.38),
+        (0.68, 0.38, 0.76, 0.70),
+    ],
+]
+
+def draw_cracks(surface, rx, ry, rsize, hp_ratio):
+    """Nakresli trhliny na skeleton podle zbývajícího HP (0.0=mrtvý, 1.0=plné HP)."""
+    if hp_ratio >= 1.0:
+        return  # Žádné poškození - žádné trhliny
+    damage_ratio = 1.0 - hp_ratio  # 0=čerstvý, 1=zničený
+    # Vyber stupeň trhlin (0-3)
+    stage_idx = min(3, int(damage_ratio * 4))
+    lines = _CRACK_STAGES[stage_idx]
+    # Temně šedá barva trhlin + tmavší obrys
+    crack_color  = (30, 30, 30)
+    shadow_color = (0, 0, 0)
+    for x1n, y1n, x2n, y2n in lines:
+        x1 = int(rx + x1n * rsize)
+        y1 = int(ry + y1n * rsize)
+        x2 = int(rx + x2n * rsize)
+        y2 = int(ry + y2n * rsize)
+        pygame.draw.line(surface, shadow_color, (x1+1, y1+1), (x2+1, y2+1), 3)
+        pygame.draw.line(surface, crack_color,  (x1,   y1  ), (x2,   y2  ), 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
 # Vlastnosti kostky - hráčův modrý čtverec
 cube_size = 50  # Velikost kostky
 cube_x = float(50)  # Pozice kostky X (vlevo, na start)
@@ -811,7 +870,7 @@ while running:
         pygame.draw.rect(screen, RESPAWN_COLOR, respawn_rect)  # Zelené vyplnění
         pygame.draw.rect(screen, WHITE, respawn_rect, 2)  # Bílý okraj
 
-    # Nakresli všechny nepřátele (skeletony) a jejich zdravotní lišty
+    # Nakresli všechny nepřátele (skeletony) a jejich praskání
     for enemy in enemies:
         # Telo nepřítele - základní čtverec
         enemy_rect = pygame.Rect(enemy.x, enemy.y, enemy.size, enemy.size)
@@ -837,10 +896,9 @@ while running:
             (nose_x + nose_size, nose_y + nose_size)
         ])
         
-        # Zdravotní lišta nad nepřítelem
-        bar_w = int(enemy.size * (enemy.hp / enemy.max_hp))  # Kolik % zdraví
-        pygame.draw.rect(screen, RED, (enemy.x, enemy.y - 12, enemy.size, 6))  # Červené pozadí
-        pygame.draw.rect(screen, (0, 255, 0), (enemy.x, enemy.y - 12, bar_w, 6))  # Zelený indikátor
+        # Trhliny Minecraft-stylu místo HP lišty
+        hp_ratio = enemy.hp / enemy.max_hp
+        draw_cracks(screen, enemy.x, enemy.y, enemy.size, hp_ratio)
 
     # Vytvoř pomocnou plochu - sem si nakreslíme kostku a katanu
     cube_surf = pygame.Surface((SURF_SIZE, SURF_SIZE), pygame.SRCALPHA)
@@ -913,11 +971,17 @@ while running:
         pygame.draw.polygon(hitbox_surf, (255, 0, 0, 40), draw_poly) # Poloprůhledná výplň čepele
         pygame.draw.polygon(hitbox_surf, RED, draw_poly, 2)          # Červený okraj přesně podle dráhy
         
-        # Znázornění středu a okraje nepřátel
+        # Znázornění středu a okraje nepřátel + HP lišta
         for enemy in enemies:
             ecx = enemy.x + enemy.size / 2
             ecy = enemy.y + enemy.size / 2
             pygame.draw.circle(hitbox_surf, (0, 255, 0, 150), (int(ecx), int(ecy)), 4)
+            # HP lišta nad nepřítelem (jen v debug módu)
+            bar_w = int(enemy.size * (enemy.hp / enemy.max_hp))
+            pygame.draw.rect(hitbox_surf, (180, 0, 0, 200), (enemy.x, enemy.y - 14, enemy.size, 7))
+            pygame.draw.rect(hitbox_surf, (0, 220, 60, 220), (enemy.x, enemy.y - 14, bar_w, 7))
+            hp_txt = font_controls.render(f"{enemy.hp}/{enemy.max_hp}", True, WHITE)
+            screen.blit(hp_txt, (int(ecx) - hp_txt.get_width() // 2, int(enemy.y) - 30))
             
         # Znázornění zápěstí hráče
         pygame.draw.circle(hitbox_surf, (0, 255, 255, 150), (int(cx + w_px), int(cy + w_py)), 4)
