@@ -25,6 +25,13 @@ GUARD_COLOR  = (185, 185, 205)   # stříbrná hlavice
 HANDLE_COLOR = (75,  42,  18)    # tmavě hnědá rukojeť
 ARROW_COLOR  = (255, 255, 160)   # žlutobílý indikátor směru
 
+# Barvy pro Bránu (Dungeon Door)
+DOOR_WOOD      = (65, 35, 15)    # Tmavé dřevo
+DOOR_IRON      = (45, 45, 50)    # Železné kování
+DOOR_LIGHT     = (255, 210, 100) # Zlaté světlo zevnitř
+GATE_FRAME     = (40, 40, 45)    # Kamenný rám
+GATE_CYAN      = (200, 200, 210) # Prach/Debris
+
 # Třída nepřátel - co je nepřítel?
 class Enemy:
     def __init__(self, x, y, type_name="skeleton", hp=10):
@@ -132,6 +139,12 @@ vel_y = 0.0  # Aktuální rychlost Y
 is_charging = False  # Nabíjí se teď dash?
 charge_start_ticks = 0  # Kdy začalo nabíjení?
 show_hitboxes = False  # Zobrazit hitboxy? (H klávesa)
+
+# Animace Brány
+gate_anim_timer = 0.0
+gate_opening_scale = 0.0
+gate_particles = []
+shake_intensity = 0.0
 
 # ─── ZDRAVÍ HRÁČE ────────────────────────────────────────────────────────────
 PLAYER_MAX_HP      = 5    # Maximální počet životů
@@ -289,6 +302,29 @@ class DustParticle:
 dust_rng       = random.Random(7)  # Vlastní generátor - konzistentní rozmístění
 dust_particles = [DustParticle(dust_rng) for _ in range(NUM_DUST)]  # Vytvoř všechny částice
 dust_surf      = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)   # Průhledná plocha pro kreslení
+
+# Částice pro Bránu (Prach a úlomky)
+class GateParticle:
+    def __init__(self, x, y):
+        self.x = x + random.uniform(-RESPAWN_WIDTH//2, RESPAWN_WIDTH//2)
+        self.y = y + random.uniform(-10, 10)
+        self.vx = random.uniform(-0.5, 0.5)
+        self.vy = random.uniform(0.5, 2.0) # Padá dolů
+        self.life = 1.0
+        self.size = random.uniform(1, 3)
+        self.color = random.choice([GATE_CYAN, (100, 100, 110), (150, 130, 110)])
+
+    def update(self, speed_mult=1.0):
+        self.x += self.vx * speed_mult
+        self.y += self.vy * speed_mult
+        self.life -= 0.01 * speed_mult
+        return self.life > 0
+
+    def draw(self, surface):
+        alpha = int(200 * self.life)
+        s = pygame.Surface((int(self.size*2), int(self.size*2)), pygame.SRCALPHA)
+        pygame.draw.circle(s, (*self.color, alpha), (int(self.size), int(self.size)), self.size)
+        surface.blit(s, (int(self.x - self.size), int(self.y - self.size)))
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Hlavní herní smyčka - běží, dokud hra neběží
@@ -595,6 +631,35 @@ while running:
         clock.tick(60)
         continue
 
+    # Aktualizace animace brány
+    gate_speed_mult = 1.0
+    if len(enemies) == 0:
+        # Plynulé otevírání
+        if gate_opening_scale < 1.0:
+            if gate_opening_scale == 0.0:
+                shake_intensity = 15.0 # Silný shake při otevření
+            gate_opening_scale += 0.02
+        
+        # Proximity speed (čím blíže hráč, tím rychleji kmitá)
+        dist_to_gate = math.hypot(cube_x - respawn_x, cube_y - (respawn_y + RESPAWN_HEIGHT//2))
+        gate_speed_mult = 1.0 + max(0, (500 - dist_to_gate) / 250)
+        
+        gate_anim_timer += 0.05 * gate_speed_mult
+        # Spawnování částic brány
+        if random.random() < 0.4 * gate_speed_mult:
+            gate_particles.append(GateParticle(respawn_x + RESPAWN_WIDTH, respawn_y + RESPAWN_HEIGHT // 2))
+    else:
+        gate_opening_scale = 0.0 # Reset pokud se nepřátelé nějak obnoví
+    
+    # Útlum screen shaku
+    if shake_intensity > 0:
+        shake_intensity *= 0.9
+    if shake_intensity < 0.1:
+        shake_intensity = 0.0
+
+    # Aktualizace částic brány
+    gate_particles = [p for p in gate_particles if p.update(gate_speed_mult)]
+
     # POHYB KOSTKY - hráčův modrý čtverec se pohybuje
     cube_x += vel_x  # Přidej rychlost X
     cube_y += vel_y  # Přidej rychlost Y
@@ -863,12 +928,84 @@ while running:
     screen.blit(vignette_surf, (0, 0))
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Nakresli respawn checkpoint (zelená krabička vpravo)
-    # Ale jen když jsou všichni nepřátelé poraženi
+    # 3. SILUETOVÁ BRÁNA
+    # Celá brána má tvar vašeho nákresu. 
+    # Černá část (dřík) je průchod. Vrch a spodek jsou pilíře.
+    rx, ry = respawn_x, respawn_y
+    rw, rh = RESPAWN_WIDTH, RESPAWN_HEIGHT
+    bx, by = rx + rw // 2, ry
+    
+    # Parametry siluety 
+    w_max   = rw + 100  
+    w_head  = rw + 60   
+    w_neck  = rw + 20   
+    w_opening = rw + 20 
+    
+    # Masivní zvětšení celkové výšky
+    extra_h = 400
+    total_h = rh + extra_h
+    
+    h_pillar = 120      # Vyšší pilíře pro balanc
+    h_opening = total_h - h_pillar * 2 
+    
+    # --- KRESLENÍ RÁMU BRÁNY (Monolith Frame) ---
+    top_y = by - extra_h // 2
+    top_pillar = [
+        (bx, top_y - 50),                      
+        (bx - w_head//2, top_y + h_pillar//3), 
+        (bx - w_neck//2, top_y + h_pillar//2),
+        (bx - w_max//2, top_y + h_pillar//2), 
+        (bx - w_max//2, top_y + h_pillar),
+        (bx + w_max//2, top_y + h_pillar), 
+        (bx + w_max//2, top_y + h_pillar//2),
+        (bx + w_neck//2, top_y + h_pillar//2), 
+        (bx + w_head//2, top_y + h_pillar//3),
+    ]
+    s_by = top_y + total_h + 50
+    bot_pillar = [
+        (bx, s_by), 
+        (bx - w_head//2, s_by - h_pillar//3), 
+        (bx - w_neck//2, s_by - h_pillar//2),
+        (bx - w_max//2, s_by - h_pillar//2), 
+        (bx - w_max//2, s_by - h_pillar),
+        (bx + w_max//2, s_by - h_pillar), 
+        (bx + w_max//2, s_by - h_pillar//2),
+        (bx + w_neck//2, s_by - h_pillar//2), 
+        (bx + w_head//2, s_by - h_pillar//3),
+    ]
+    
+    pygame.draw.polygon(screen, GATE_FRAME, top_pillar)
+    pygame.draw.polygon(screen, (20, 20, 25), top_pillar, 2)
+    pygame.draw.polygon(screen, GATE_FRAME, bot_pillar)
+    pygame.draw.polygon(screen, (20, 20, 25), bot_pillar, 2)
+    
+    side_w = 18 # Ještě silnější stěny
+    pygame.draw.rect(screen, GATE_FRAME, (bx - w_opening//2 - side_w, top_y + h_pillar, side_w, h_opening + 50))
+    pygame.draw.rect(screen, GATE_FRAME, (bx + w_opening//2, top_y + h_pillar, side_w, h_opening + 50))
+
+    # --- PRŮCHOD (The Black Part / Doorway) ---
+    doorway_rect = pygame.Rect(bx - w_opening//2, top_y + h_pillar, w_opening, h_opening + 50)
     if len(enemies) == 0:
-        respawn_rect = pygame.Rect(respawn_x, respawn_y, RESPAWN_WIDTH, RESPAWN_HEIGHT)
-        pygame.draw.rect(screen, RESPAWN_COLOR, respawn_rect)  # Zelené vyplnění
-        pygame.draw.rect(screen, WHITE, respawn_rect, 2)  # Bílý okraj
+        alpha = int(180 * gate_opening_scale)
+        s_glow = pygame.Surface((w_opening, doorway_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(s_glow, (*DOOR_LIGHT, alpha), (0, 0, w_opening, doorway_rect.height))
+        screen.blit(s_glow, doorway_rect.topleft)
+        if gate_opening_scale > 0:
+            light_w = int(w_opening * 2.5 * gate_opening_scale)
+            l_surf = pygame.Surface((light_w, doorway_rect.height), pygame.SRCALPHA)
+            for i in range(12):
+                l_alpha = int(50 * (1.0 - i/12) * gate_opening_scale)
+                pygame.draw.ellipse(l_surf, (*DOOR_LIGHT, l_alpha), (0, 0, light_w, doorway_rect.height))
+            screen.blit(l_surf, (bx - light_w//2, doorway_rect.y), special_flags=pygame.BLEND_ADD)
+    else:
+        pygame.draw.rect(screen, BLACK, doorway_rect)
+
+    # 5. ČÁSTICE (Dust)
+
+
+        # 5. ČÁSTICE (Dust)
+        for p in gate_particles:
+            p.draw(screen)
 
     # Nakresli všechny nepřátele (skeletony) a jejich praskání
     for enemy in enemies:
@@ -1012,7 +1149,17 @@ while running:
         pygame.draw.circle(screen, border_color, (hx + heart_size // 2, hy + heart_size // 2), heart_size // 2, 3)
     # ─────────────────────────────────────────────────────────────────────────
 
+    # Výpočet screen shaku pro finální blit
+    shake_x = random.uniform(-shake_intensity, shake_intensity)
+    shake_y = random.uniform(-shake_intensity, shake_intensity)
+
     # Refresh obrazovky - vidíš nový frame
+    # Pokud je shake, posuneme celou obrazovku (pomocí dočasného povrchu nebo blitnutí na offset)
+    if shake_intensity > 0:
+        temp_screen = screen.copy()
+        screen.fill(BLACK)
+        screen.blit(temp_screen, (shake_x, shake_y))
+
     pygame.display.flip()
     # Udržuj 60 FPS (snímků za vteřinu)
     clock.tick(60)
