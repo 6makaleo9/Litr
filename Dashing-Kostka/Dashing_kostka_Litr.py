@@ -24,6 +24,7 @@ BLADE_COLOR  = (210, 228, 255)   # lehce namodralá ocel čepele
 GUARD_COLOR  = (185, 185, 205)   # stříbrná hlavice
 HANDLE_COLOR = (75,  42,  18)    # tmavě hnědá rukojeť
 ARROW_COLOR  = (255, 255, 160)   # žlutobílý indikátor směru
+GOBLIN_GREEN = (25,  90,  25)    # tmavě zelená pro gobliny
 
 # Barvy pro Bránu (Dungeon Door)
 DOOR_WOOD      = (65, 35, 15)    # Tmavé dřevo
@@ -34,14 +35,21 @@ GATE_CYAN      = (200, 200, 210) # Prach/Debris
 
 # Třída nepřátel - co je nepřítel?
 class Enemy:
-    def __init__(self, x, y, type_name="skeleton", hp=10):
+    def __init__(self, x, y, type_name="skeleton"):
         self.x = x  # Pozice X
         self.y = y  # Pozice Y
         self.type_name = type_name  # Jaký typ nepřítele
-        self.hp = hp  # Zdraví nepřítele
-        self.max_hp = hp  # Maximální zdraví (pro zdravotní lištu)
-        self.color = WHITE  # Barva nepřítele
-        self.size = 45  # Velikost nepřítele
+        
+        if type_name == "goblin":
+            self.hp = 7
+            self.color = GOBLIN_GREEN
+            self.size = 35
+        else:
+            self.hp = 10
+            self.color = WHITE
+            self.size = 45
+            
+        self.max_hp = self.hp  # Maximální zdraví (pro zdravotní lištu)
 
 # Jak rychle se nepřítel pohybuje
 ENEMY_SPEED = 1.0
@@ -122,14 +130,23 @@ respawn_y = HEIGHT // 2 - RESPAWN_HEIGHT // 2  # Uprostřed obrazovky
 RESPAWN_COLOR = (100, 200, 100)  # Zelená barva
 
 # Kde se nepřátelé poprvé objeví
-INITIAL_ENEMIES = [
-    (WIDTH // 2 + 200, HEIGHT // 2),
-    (WIDTH // 2 + 200, HEIGHT // 2 - 100),
-    (WIDTH // 2 + 200, HEIGHT // 2 + 100)
-]
+def get_level_enemies(level):
+    """Vrátí seznam nepřátel pro daný level"""
+    # Pozice jsou pro teď stejné
+    positions = [
+        (WIDTH // 2 + 200, HEIGHT // 2),
+        (WIDTH // 2 + 200, HEIGHT // 2 - 100),
+        (WIDTH // 2 + 200, HEIGHT // 2 + 100)
+    ]
+    
+    # První level (0) = skeletoni, Druhý level (1) = goblini
+    if level == 1:
+        return [Enemy(x, y, "goblin") for x, y in positions]
+    else:
+        # Ostatní levely (nebo liché) zatím skeletoni, nebo můžeme střídat
+        etype = "skeleton" if level % 2 == 0 else "goblin"
+        return [Enemy(x, y, etype) for x, y in positions]
 
-# Vytvoř seznam nepřátel na mapě
-enemies = [Enemy(x, y) for x, y in INITIAL_ENEMIES]
 
 # Dash - rychlý pohyb hráče
 DASH_SPEED    = 40  # Jak rychle se kostka pohybuje
@@ -174,6 +191,9 @@ def load_game():
     return 0
 
 level_completed = load_game()  # Načti uložený postup
+
+# Vytvoř seznam nepřátel na mapě (podle aktuálního levelu)
+enemies = get_level_enemies(level_completed)
 font        = pygame.font.SysFont(None, 48)
 
 # ─── HERNÍ STAV ──────────────────────────────────────────────────────────────
@@ -369,7 +389,7 @@ while running:
                     cube_y = float(START_Y)
                     vel_x = 0.0
                     vel_y = 0.0
-                    enemies = [Enemy(x, y) for x, y in INITIAL_ENEMIES]
+                    enemies = get_level_enemies(level_completed)
                     slash_timer = 0
                     enemies_hit_this_slash.clear()
                     player_hp = PLAYER_MAX_HP          # Obnov zdraví hráče
@@ -690,8 +710,8 @@ while running:
         vel_x = 0.0  # Zastav pohyb
         vel_y = 0.0  # Zastav pohyb
         
-        # Obnovi všechny nepřátele na jejich startu
-        enemies = [Enemy(x, y) for x, y in INITIAL_ENEMIES]
+        # Obnovi všechny nepřátelé na jejich startu podle nového levelu
+        enemies = get_level_enemies(level_completed)
         slash_timer = 0  # Zastavit animaci
         enemies_hit_this_slash.clear()  # Vyčisti seznam
         player_hp = min(PLAYER_MAX_HP, player_hp + 1)  # Obnov 1 HP za dokončení levelu
@@ -1012,10 +1032,11 @@ while running:
         # Telo nepřítele - základní čtverec
         enemy_rect = pygame.Rect(enemy.x, enemy.y, enemy.size, enemy.size)
         pygame.draw.rect(screen, enemy.color, enemy_rect)
-        pygame.draw.rect(screen, (255, 255, 255), enemy_rect, 2)  # Bílý okraj pro definici
+        if enemy.type_name != "goblin":
+            pygame.draw.rect(screen, (255, 255, 255), enemy_rect, 2)  # Bílý okraj pro definici
         
-        # Oči - dva černé kruhy
-        eye_size = 6
+        # Oči - dva černé kruhy (pro gobliny můžou být menší nebo jiné)
+        eye_size = 5 if enemy.type_name == "goblin" else 6
         eye_offset_x = enemy.size // 4
         eye_offset_y = enemy.size // 3
         pygame.draw.circle(screen, (0, 0, 0), 
@@ -1023,15 +1044,16 @@ while running:
         pygame.draw.circle(screen, (0, 0, 0), 
                           (int(enemy.x + enemy.size - eye_offset_x), int(enemy.y + eye_offset_y)), eye_size)
         
-        # Nos - malý trojúhelník uprostřed
-        nose_x = enemy.x + enemy.size // 2
-        nose_y = enemy.y + enemy.size // 2
-        nose_size = 4
-        pygame.draw.polygon(screen, (0, 0, 0), [
-            (nose_x, nose_y - nose_size),
-            (nose_x - nose_size, nose_y + nose_size),
-            (nose_x + nose_size, nose_y + nose_size)
-        ])
+        # Nos - jen pro skeletony
+        if enemy.type_name == "skeleton":
+            nose_x = enemy.x + enemy.size // 2
+            nose_y = enemy.y + enemy.size // 2
+            nose_size = 4
+            pygame.draw.polygon(screen, (0, 0, 0), [
+                (nose_x, nose_y - nose_size),
+                (nose_x - nose_size, nose_y + nose_size),
+                (nose_x + nose_size, nose_y + nose_size)
+            ])
         
         # Trhliny Minecraft-stylu místo HP lišty
         hp_ratio = enemy.hp / enemy.max_hp
