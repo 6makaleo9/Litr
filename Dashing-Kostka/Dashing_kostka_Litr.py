@@ -478,6 +478,9 @@ while running:
                     vel_y = (ddy / dist) * final_dash_speed
                 slash_timer = SLASH_DURATION  # Spusť animaci katany
 
+                # Dash vždy udělí nezranitelnost - zaručí ochranu i při spamu klikání
+                player_invincible = max(player_invincible, PLAYER_INVINCIBLE_FRAMES)
+
                 # Pokud je plně nabito, způsobí více zranění
                 attack_damage = 5 if charge_factor >= 1.0 else 1
                 enemies_hit_this_slash.clear()  # Vyčisti seznam zasažených nepřátel
@@ -725,8 +728,10 @@ while running:
     DASH_INVINCIBLE_THRESHOLD = 8.0  # Minimální rychlost pro nezranitelnost při dashu
     is_dashing = math.hypot(vel_x, vel_y) > DASH_INVINCIBLE_THRESHOLD
 
-    # Odpočet nezranitelnosti hráče (neodpočítává se během dashu)
-    if player_invincible > 0 and not is_dashing:
+    # Odpočet nezranitelnosti hráče - tikne každý snímek (i během dashu)
+    # Nezranitelnost se nastavuje při každém dashu (viz MOUSEBUTTONUP), takže spam klikání
+    # ji vždy obnoví dříve, než stihne vypršet.
+    if player_invincible > 0:
         player_invincible -= 1
     
     for enemy in enemies:
@@ -750,12 +755,12 @@ while running:
                     enemy.y += dy * ENEMY_SPEED
 
         # KONTAKTNÍ ZRANĚNÍ - nepřítel se dotkl hráče?
-        # Při dashu je hráč nezranitelný
+        # Hráč je nezranitelný při dashu (vysoká rychlost) NEBO během iframes po zásahu/dashu
         player_rect = pygame.Rect(cube_x, cube_y, cube_size, cube_size)
         enemy_rect_col = pygame.Rect(enemy.x, enemy.y, enemy.size, enemy.size)
         if player_rect.colliderect(enemy_rect_col) and player_invincible == 0 and not is_dashing:
             player_hp -= PLAYER_DAMAGE          # Odeber život
-            player_invincible = PLAYER_INVINCIBLE_FRAMES  # Nastav nezranitelnost
+            player_invincible = PLAYER_INVINCIBLE_FRAMES  # Nastav nezranitelnost po zásahu
                     
         # Nepřítel se nemůže jít mimo obrazovku
         enemy.x = max(0, min(WIDTH - enemy.size, enemy.x))
