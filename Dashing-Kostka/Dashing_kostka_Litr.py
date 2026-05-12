@@ -44,6 +44,9 @@ class Enemy:
             self.hp = 7
             self.color = GOBLIN_GREEN
             self.size = 35
+            # Oštěp - bodání
+            self.spear_lunge_timer   = 0    # Kolik snímků zbývá do konce bodynutí
+            self.spear_lunge_cooldown = 0   # Kolik snímků do příštího bodnutí
         else:
             self.hp = 10
             self.color = WHITE
@@ -55,6 +58,13 @@ class Enemy:
 ENEMY_SPEED = 1.0
 # Jak daleko vidí nepřítel (radius dohledu v pixelech)
 SPOT_RADIUS = 500
+
+# ─── OŠTĚP GOBLINA - konstanty útoku ─────────────────────────────────────────
+SPEAR_LUNGE_RANGE    = 100   # Vzdálenost (px) ve které goblin bodne
+SPEAR_LUNGE_DURATION = 14    # Snímků trvá jedno bodnutí (dopředu + zpět)
+SPEAR_LUNGE_COOLDOWN = 90    # Snímků mezi bodnutími (~1.5 s při 60 FPS)
+SPEAR_LUNGE_EXTRA    = 28    # O kolik px se hrot posune vpřed při bodnutí
+# ─────────────────────────────────────────────────────────────────────────────
 
 # ─── EFEKT PRASKÁNÍ SKELETU ────────────────────────────────
 # Definuje předem vyrobené trhliny pro každou fázi poškození (0 = žádné, 4 = max).
@@ -754,6 +764,51 @@ while running:
                     enemy.x += dx * ENEMY_SPEED
                     enemy.y += dy * ENEMY_SPEED
 
+        # ─── OŠTĚP - BODNUTÍ GOBLINA ──────────────────────────────────────────
+        if enemy.type_name == "goblin":
+            # Odpočet cooldownu
+            if enemy.spear_lunge_cooldown > 0:
+                enemy.spear_lunge_cooldown -= 1
+
+            # Spusť bodnutí pokud je hráč blízko a goblin není ve švihu a má připraveno
+            if (dist < SPEAR_LUNGE_RANGE and
+                    enemy.spear_lunge_timer == 0 and
+                    enemy.spear_lunge_cooldown == 0 and
+                    dist > 0):
+                enemy.spear_lunge_timer   = SPEAR_LUNGE_DURATION
+                enemy.spear_lunge_cooldown = SPEAR_LUNGE_COOLDOWN
+
+            # Tikni animaci bodnutí
+            if enemy.spear_lunge_timer > 0:
+                enemy.spear_lunge_timer -= 1
+
+            # Výpočet aktuálního posunutí hrotu (0→max→0 v průběhu animace)
+            lunge_t = 0.0
+            if SPEAR_LUNGE_DURATION > 0 and enemy.spear_lunge_timer > 0:
+                half = SPEAR_LUNGE_DURATION / 2
+                elapsed = SPEAR_LUNGE_DURATION - enemy.spear_lunge_timer
+                lunge_t = max(0.0, 1.0 - abs(elapsed - half) / half)
+            enemy._lunge_t = lunge_t  # Ulož pro vykreslení
+
+            # Poškozuj hráče špičkou oštěpu během bodnutí
+            if lunge_t > 0.5 and player_invincible == 0 and not is_dashing:
+                # Střed goblina
+                gcx_l = enemy.x + enemy.size / 2
+                gcy_l = enemy.y + enemy.size / 2
+                sp_angle_l = math.atan2(cy - gcy_l, cx - gcx_l)
+                shaft_len_l = enemy.size + 22 + SPEAR_LUNGE_EXTRA * lunge_t
+                tip_lx = gcx_l + math.cos(sp_angle_l) * shaft_len_l
+                tip_ly = gcy_l + math.sin(sp_angle_l) * shaft_len_l
+                # Hitbox hrotu (malý čtvereček kolem špičky)
+                tip_rect = pygame.Rect(tip_lx - 8, tip_ly - 8, 16, 16)
+                player_rect_l = pygame.Rect(cube_x, cube_y, cube_size, cube_size)
+                if tip_rect.colliderect(player_rect_l):
+                    player_hp -= PLAYER_DAMAGE
+                    player_invincible = PLAYER_INVINCIBLE_FRAMES
+        else:
+            enemy._lunge_t = 0.0  # Skeletoni nemají oštěp
+        # ──────────────────────────────────────────────────────────────────────
+
         # KONTAKTNÍ ZRANĚNÍ - nepřítel se dotkl hráče?
         # Hráč je nezranitelný při dashu (vysoká rychlost) NEBO během iframes po zásahu/dashu
         player_rect = pygame.Rect(cube_x, cube_y, cube_size, cube_size)
@@ -1049,6 +1104,56 @@ while running:
         pygame.draw.circle(screen, (0, 0, 0), 
                           (int(enemy.x + enemy.size - eye_offset_x), int(enemy.y + eye_offset_y)), eye_size)
         
+        # Oštěp - jen pro gobliny (natočený ke hráči)
+        if enemy.type_name == "goblin":
+            SPEAR_COLOR  = (160, 110, 60)   # Tmavé dřevo - dřík
+            HEAD_COLOR   = (200, 210, 220)   # Stříbrný kov - hrot
+            HEAD_LEN     = 10               # Délka hrotu
+            HEAD_W       = 5                # Pološířka hrotu
+            SHAFT_W      = 3                # Tloušťka dříku
+            
+            # Aktuální lunge posun (animace bodnutí)
+            lunge_offset = getattr(enemy, '_lunge_t', 0.0) * SPEAR_LUNGE_EXTRA
+            SHAFT_LEN    = enemy.size + 22 + lunge_offset  # Roste při bodnutí
+            
+            # Střed goblina
+            gcx = enemy.x + enemy.size / 2
+            gcy = enemy.y + enemy.size / 2
+            
+            # Úhel od goblina ke hráči
+            sp_angle = math.atan2(cy - gcy, cx - gcx)
+            sp_cos = math.cos(sp_angle)
+            sp_sin = math.sin(sp_angle)
+            
+            # Kořen dříku - za goblinovým středem
+            root_x = gcx - sp_cos * (enemy.size * 0.55)
+            root_y = gcy - sp_sin * (enemy.size * 0.55)
+            # Konec dříku (kde začíná hrot)
+            neck_x = gcx + sp_cos * (SHAFT_LEN - HEAD_LEN)
+            neck_y = gcy + sp_sin * (SHAFT_LEN - HEAD_LEN)
+            # Hrot oštěpu
+            tip_sx = gcx + sp_cos * SHAFT_LEN
+            tip_sy = gcy + sp_sin * SHAFT_LEN
+            
+            # Perpendikula (pro základnu hrotu)
+            perp_cos = -sp_sin
+            perp_sin =  sp_cos
+            
+            # Nakresli dřík - světlé zvýraznění při bodnutí
+            shaft_col = (220, 160, 90) if lunge_offset > 0 else SPEAR_COLOR
+            pygame.draw.line(screen, shaft_col,
+                             (int(root_x), int(root_y)),
+                             (int(neck_x),  int(neck_y)), SHAFT_W)
+            # Nakresli trojúhelníkový hrot - svítí oranžově při bodnutí
+            head_col = (255, 220, 120) if lunge_offset > 0 else HEAD_COLOR
+            spear_head = [
+                (int(tip_sx), int(tip_sy)),
+                (int(neck_x + perp_cos * HEAD_W), int(neck_y + perp_sin * HEAD_W)),
+                (int(neck_x - perp_cos * HEAD_W), int(neck_y - perp_sin * HEAD_W)),
+            ]
+            pygame.draw.polygon(screen, head_col, spear_head)
+            pygame.draw.polygon(screen, (100, 110, 120), spear_head, 1)  # Tmavší okraj hrotu
+
         # Nos - jen pro skeletony
         if enemy.type_name == "skeleton":
             nose_x = enemy.x + enemy.size // 2
@@ -1146,6 +1251,36 @@ while running:
             pygame.draw.rect(hitbox_surf, (0, 220, 60, 220), (enemy.x, enemy.y - 14, bar_w, 7))
             hp_txt = font_controls.render(f"{enemy.hp}/{enemy.max_hp}", True, WHITE)
             screen.blit(hp_txt, (int(ecx) - hp_txt.get_width() // 2, int(enemy.y) - 30))
+            
+            # ─── DEBUG HITBOX OŠTĚPU GOBLINA ──────────────────────────────────
+            if enemy.type_name == "goblin":
+                lunge_off_dbg = getattr(enemy, '_lunge_t', 0.0) * SPEAR_LUNGE_EXTRA
+                shaft_len_dbg = enemy.size + 22 + lunge_off_dbg
+                sp_ang_dbg    = math.atan2(cy - ecy, cx - ecx)
+                sp_c_dbg      = math.cos(sp_ang_dbg)
+                sp_s_dbg      = math.sin(sp_ang_dbg)
+                head_len_dbg  = 10
+                head_w_dbg    = 5
+                neck_xd = ecx + sp_c_dbg * (shaft_len_dbg - head_len_dbg)
+                neck_yd = ecy + sp_s_dbg * (shaft_len_dbg - head_len_dbg)
+                tip_xd  = ecx + sp_c_dbg * shaft_len_dbg
+                tip_yd  = ecy + sp_s_dbg * shaft_len_dbg
+                perp_cd = -sp_s_dbg
+                perp_sd =  sp_c_dbg
+                spear_dbg_poly = [
+                    (int(tip_xd), int(tip_yd)),
+                    (int(neck_xd + perp_cd * head_w_dbg), int(neck_yd + perp_sd * head_w_dbg)),
+                    (int(neck_xd - perp_cd * head_w_dbg), int(neck_yd - perp_sd * head_w_dbg)),
+                ]
+                # Hitbox čtvereček kolem hrotu
+                pygame.draw.rect(hitbox_surf, (255, 140, 0, 50),
+                                 (int(tip_xd) - 8, int(tip_yd) - 8, 16, 16))
+                pygame.draw.rect(hitbox_surf, (255, 140, 0, 200),
+                                 (int(tip_xd) - 8, int(tip_yd) - 8, 16, 16), 1)
+                # Obrys hrotu oštěpu
+                pygame.draw.polygon(hitbox_surf, (255, 200, 0, 60), spear_dbg_poly)
+                pygame.draw.polygon(hitbox_surf, (255, 200, 0, 220), spear_dbg_poly, 1)
+            # ──────────────────────────────────────────────────────────────────
             
         # Znázornění zápěstí hráče
         pygame.draw.circle(hitbox_surf, (0, 255, 255, 150), (int(cx + w_px), int(cy + w_py)), 4)
