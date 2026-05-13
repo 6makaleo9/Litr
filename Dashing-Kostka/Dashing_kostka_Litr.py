@@ -1009,59 +1009,130 @@ while running:
     # ─────────────────────────────────────────────────────────────────────────
 
     # 3. SILUETOVÁ BRÁNA
-    # Celá brána má tvar vašeho nákresu. 
-    # Černá část (dřík) je průchod. Vrch a spodek jsou pilíře.
+    # Celá brána má tvar nákresu špičky.
+    # Černá část (dřík) je průchod. Vrch a spodek jsou kamenné pilíře.
     rx, ry = respawn_x, respawn_y
     rw, rh = RESPAWN_WIDTH, RESPAWN_HEIGHT
     bx, by = rx + rw // 2, ry
-    
-    # Parametry siluety 
-    w_max   = rw + 100  
-    w_head  = rw + 60   
-    w_neck  = rw + 20   
-    w_opening = rw + 20 
-    
-    # Masivní zvětšení celkové výšky
-    extra_h = 400
-    total_h = rh + extra_h
-    
-    h_pillar = 120      # Vyšší pilíře pro balanc
-    h_opening = total_h - h_pillar * 2 
-    
-    # --- KRESLENÍ RÁMU BRÁNY (Monolith Frame) ---
+
+    # Parametry siluety
+    w_max     = rw + 100
+    w_head    = rw + 60
+    w_neck    = rw + 20
+    w_opening = rw + 20
+
+    # Výška celé struktury
+    extra_h   = 400
+    total_h   = rh + extra_h
+    h_pillar  = 120
+    h_opening = total_h - h_pillar * 2
+
     top_y = by - extra_h // 2
+    s_by  = top_y + total_h + 50
+
+    # Definice tvarů pilířů (stejně jako dříve)
     top_pillar = [
-        (bx, top_y - 50),                      
-        (bx - w_head//2, top_y + h_pillar//3), 
-        (bx - w_neck//2, top_y + h_pillar//2),
-        (bx - w_max//2, top_y + h_pillar//2), 
-        (bx - w_max//2, top_y + h_pillar),
-        (bx + w_max//2, top_y + h_pillar), 
-        (bx + w_max//2, top_y + h_pillar//2),
-        (bx + w_neck//2, top_y + h_pillar//2), 
-        (bx + w_head//2, top_y + h_pillar//3),
+        (bx,               top_y - 50),
+        (bx - w_head//2,   top_y + h_pillar//3),
+        (bx - w_neck//2,   top_y + h_pillar//2),
+        (bx - w_max//2,    top_y + h_pillar//2),
+        (bx - w_max//2,    top_y + h_pillar),
+        (bx + w_max//2,    top_y + h_pillar),
+        (bx + w_max//2,    top_y + h_pillar//2),
+        (bx + w_neck//2,   top_y + h_pillar//2),
+        (bx + w_head//2,   top_y + h_pillar//3),
     ]
-    s_by = top_y + total_h + 50
     bot_pillar = [
-        (bx, s_by), 
-        (bx - w_head//2, s_by - h_pillar//3), 
-        (bx - w_neck//2, s_by - h_pillar//2),
-        (bx - w_max//2, s_by - h_pillar//2), 
-        (bx - w_max//2, s_by - h_pillar),
-        (bx + w_max//2, s_by - h_pillar), 
-        (bx + w_max//2, s_by - h_pillar//2),
-        (bx + w_neck//2, s_by - h_pillar//2), 
-        (bx + w_head//2, s_by - h_pillar//3),
+        (bx,               s_by),
+        (bx - w_head//2,   s_by - h_pillar//3),
+        (bx - w_neck//2,   s_by - h_pillar//2),
+        (bx - w_max//2,    s_by - h_pillar//2),
+        (bx - w_max//2,    s_by - h_pillar),
+        (bx + w_max//2,    s_by - h_pillar),
+        (bx + w_max//2,    s_by - h_pillar//2),
+        (bx + w_neck//2,   s_by - h_pillar//2),
+        (bx + w_head//2,   s_by - h_pillar//3),
     ]
-    
-    pygame.draw.polygon(screen, GATE_FRAME, top_pillar)
-    pygame.draw.polygon(screen, (20, 20, 25), top_pillar, 2)
-    pygame.draw.polygon(screen, GATE_FRAME, bot_pillar)
-    pygame.draw.polygon(screen, (20, 20, 25), bot_pillar, 2)
-    
-    side_w = 18 # Ještě silnější stěny
-    pygame.draw.rect(screen, GATE_FRAME, (bx - w_opening//2 - side_w, top_y + h_pillar, side_w, h_opening + 50))
-    pygame.draw.rect(screen, GATE_FRAME, (bx + w_opening//2, top_y + h_pillar, side_w, h_opening + 50))
+
+    # ── Pomocná funkce: kresli kamenný obdélník se zkosenou hranou ──
+    def _draw_stone_block(rect, base_col):
+        """Vykreslí jeden kamenný blok s bevel světlem/stínem jako dlaždice."""
+        pygame.draw.rect(screen, base_col, rect)
+        # Světlá linka nahoře a vlevo (dopad světla) - silnější delta pro kontrast
+        hi = tuple(min(255, c + 30) for c in base_col)
+        pygame.draw.line(screen, hi, (rect.left,  rect.top),    (rect.right-1, rect.top),    1)
+        pygame.draw.line(screen, hi, (rect.left,  rect.top),    (rect.left,    rect.bottom-1), 1)
+        # Tmavá linka dole a vpravo (stín) - silnější
+        sh = tuple(max(0, c - 12) for c in base_col)
+        pygame.draw.line(screen, sh, (rect.left,  rect.bottom-1), (rect.right-1, rect.bottom-1), 1)
+        pygame.draw.line(screen, sh, (rect.right-1, rect.top),    (rect.right-1, rect.bottom-1), 1)
+
+    # ── Barvy kamenné brány - tmavší fialovo-uhelná paleta, odlišná od dlažby ──
+    # Dlažba je modro-šedá (22,22,28); brána musí být výrazně tmavší a jiná
+    GATE_STONE   = (18, 15, 28)   # Temně fialovo-černý kámen
+    GATE_GROUT   = (6,  5,  10)   # Téměř černá spára
+    GATE_HI      = (62, 52, 85)   # Fialový bevel highlight
+    GATE_RIM     = (110, 85, 45)  # Tlumená zlatá linka (rámeček brány)
+    side_w       = 18             # Šířka svislých pilířů po stranách průchodu
+
+    # ── Vykreslení horního pilíře ──
+    pygame.draw.polygon(screen, GATE_GROUT, top_pillar)          # Základní výplň (spára)
+    # Ořezaná plocha pro kamenné bloky uvnitř pilíře – bounding box
+    tp_rect = pygame.Rect(
+        bx - w_max//2, top_y - 50,
+        w_max, h_pillar + 50
+    )
+    # Kamenné vodorovné bloky (3 vrstvy)
+    block_h = (h_pillar + 50) // 3
+    for bi in range(3):
+        block_y = tp_rect.top + bi * block_h
+        # Jemná odchylka barvy (deterministic) jako u dlaždic
+        bv = ((bi * 7 + 3) % (TILE_VAR * 2)) - TILE_VAR
+        bc = tuple(max(0, min(255, GATE_STONE[c] + bv)) for c in range(3))
+        # Ořízni blok tak, aby nepřečníval tvar polygonu
+        for bx_off in range(-w_max//2, w_max//2, (w_max//2)):
+            br = pygame.Rect(bx + bx_off + 1, block_y + 1, abs(bx_off) + w_max//2 - 1, block_h - 2)
+            _draw_stone_block(br, bc)
+        # Celý horizontální blok přes šířku
+        full_br = pygame.Rect(tp_rect.left + 2, block_y + 1, tp_rect.width - 4, block_h - 2)
+        _draw_stone_block(full_br, bc)
+    # Kresli spárovou linku + bevel + zlatý rámeček
+    pygame.draw.polygon(screen, GATE_GROUT, top_pillar, 2)
+    pygame.draw.polygon(screen, GATE_HI, top_pillar, 1)
+    pygame.draw.polygon(screen, GATE_RIM, top_pillar, 1)  # Zlatý akcent
+
+    # ── Vykreslení dolního pilíře ──
+    bp_rect = pygame.Rect(
+        bx - w_max//2, s_by - h_pillar,
+        w_max, h_pillar + 50
+    )
+    pygame.draw.polygon(screen, GATE_GROUT, bot_pillar)
+    for bi in range(3):
+        block_y = bp_rect.top + bi * block_h
+        bv = ((bi * 5 + 1) % (TILE_VAR * 2)) - TILE_VAR
+        bc = tuple(max(0, min(255, GATE_STONE[c] + bv)) for c in range(3))
+        full_br = pygame.Rect(bp_rect.left + 2, block_y + 1, bp_rect.width - 4, block_h - 2)
+        _draw_stone_block(full_br, bc)
+    pygame.draw.polygon(screen, GATE_GROUT, bot_pillar, 2)
+    pygame.draw.polygon(screen, GATE_HI, bot_pillar, 1)
+    pygame.draw.polygon(screen, GATE_RIM, bot_pillar, 1)  # Zlatý akcent
+
+    # ── Svislé pilíře po stranách průchodu (s kamennou texturou) ──
+    left_pillar_rect  = pygame.Rect(bx - w_opening//2 - side_w, top_y + h_pillar, side_w, h_opening + 50)
+    right_pillar_rect = pygame.Rect(bx + w_opening//2,           top_y + h_pillar, side_w, h_opening + 50)
+    seg_h = 48  # Výška jednoho kamenného bloku ve sloupu
+    for prect in (left_pillar_rect, right_pillar_rect):
+        pygame.draw.rect(screen, GATE_GROUT, prect)  # Spárový podklad
+        for si in range(0, prect.height, seg_h):
+            sv = ((si // seg_h * 3 + 5) % (TILE_VAR * 2)) - TILE_VAR
+            sc = tuple(max(0, min(255, GATE_STONE[c] + sv)) for c in range(3))
+            seg_rect = pygame.Rect(prect.left + 1, prect.top + si + 1,
+                                   prect.width - 2, min(seg_h - 2, prect.height - si - 2))
+            if seg_rect.height > 2:
+                _draw_stone_block(seg_rect, sc)
+        # Bevel + zlatý akcent okolo sloupu
+        pygame.draw.rect(screen, GATE_HI,  prect, 1)
+        pygame.draw.rect(screen, GATE_RIM, prect, 1)
 
     # --- PRŮCHOD (The Black Part / Doorway) ---
     doorway_rect = pygame.Rect(bx - w_opening//2, top_y + h_pillar, w_opening, h_opening + 50)
@@ -1080,12 +1151,9 @@ while running:
     else:
         pygame.draw.rect(screen, BLACK, doorway_rect)
 
-    # 5. ČÁSTICE (Dust)
-
-
-        # 5. ČÁSTICE (Dust)
-        for p in gate_particles:
-            p.draw(screen)
+    # 5. ČÁSTICE brány (prach a úlomky)
+    for p in gate_particles:
+        p.draw(screen)
 
     # Nakresli všechny nepřátele (skeletony) a jejich praskání
     for enemy in enemies:
