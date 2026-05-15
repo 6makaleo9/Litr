@@ -141,21 +141,53 @@ RESPAWN_COLOR = (100, 200, 100)  # Zelená barva
 
 # Kde se nepřátelé poprvé objeví
 def get_level_enemies(level):
-    """Vrátí seznam nepřátel pro daný level"""
-    # Pozice jsou pro teď stejné
-    positions = [
-        (WIDTH // 2 + 200, HEIGHT // 2),
-        (WIDTH // 2 + 200, HEIGHT // 2 - 100),
-        (WIDTH // 2 + 200, HEIGHT // 2 + 100)
-    ]
-    
-    # První level (0) = skeletoni, Druhý level (1) = goblini
-    if level == 1:
-        return [Enemy(x, y, "goblin") for x, y in positions]
-    else:
-        # Ostatní levely (nebo liché) zatím skeletoni, nebo můžeme střídat
-        etype = "skeleton" if level % 2 == 0 else "goblin"
-        return [Enemy(x, y, etype) for x, y in positions]
+    """Vrátí seznam nepřátel pro daný level.
+
+    Level 0 = 1 nepřítel, každý další level přidá 1 navíc (max 9).
+    Nepřátelé jsou rozmístěni v mřížce (přibližně čtvercové) a typ se
+    náhodně míchá - čím vyšší level, tím více goblinů.
+    """
+    # Počet nepřátel roste s levelem (1, 2, 3, ...), max 9
+    count = min(1 + level, 9)
+
+    # Seeded RNG podle levelu - stejný level = stejné rozmístění
+    rng = random.Random(level * 1337)
+
+    # Pravděpodobnost goblina roste s levelem (0% na lvl0, 100% na lvl8+)
+    goblin_chance = min(1.0, level / 8.0)
+
+    # Vytvoř seznam typů: mix skeletonů a goblinů
+    types = []
+    for i in range(count):
+        types.append("goblin" if rng.random() < goblin_chance else "skeleton")
+    # Zaručí alespoň jednoho skeletona na nízkých levelech
+    if level < 4 and all(t == "goblin" for t in types):
+        types[0] = "skeleton"
+
+    # Mřížka - zjisti počet sloupců a řádků (přibližně čtvercové)
+    cols = math.ceil(math.sqrt(count))
+    rows = math.ceil(count / cols)
+
+    cell_w = 120   # Horizontální mezera mezi nepřáteli
+    cell_h = 110   # Vertikální mezera mezi nepřáteli
+
+    center_x = WIDTH // 2 + 250
+    center_y = HEIGHT // 2
+
+    total_w = (cols - 1) * cell_w
+    total_h = (rows - 1) * cell_h
+    start_x = center_x - total_w // 2
+    start_y = center_y - total_h // 2
+
+    enemies_out = []
+    for i in range(count):
+        row = i // cols
+        col = i % cols
+        ex = start_x + col * cell_w + rng.randint(-15, 15)
+        ey = start_y + row * cell_h + rng.randint(-15, 15)
+        enemies_out.append(Enemy(ex, ey, types[i]))
+
+    return enemies_out
 
 
 # Dash - rychlý pohyb hráče
