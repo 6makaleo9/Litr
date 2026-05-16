@@ -387,6 +387,37 @@ class GateParticle:
         s = pygame.Surface((int(self.size*2), int(self.size*2)), pygame.SRCALPHA)
         pygame.draw.circle(s, (*self.color, alpha), (int(self.size), int(self.size)), self.size)
         surface.blit(s, (int(self.x - self.size), int(self.y - self.size)))
+
+# --- ČÁSTICE SOUBOJE (Zásahy a krev/úlomky) ---
+class CombatParticle:
+    def __init__(self, x, y, color):
+        self.x = x
+        self.y = y
+        self.color = color
+        angle = random.uniform(0, 2 * math.pi)
+        speed = random.uniform(2, 7)
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+        self.life = 1.0
+        self.decay = random.uniform(0.02, 0.06)
+        self.size = random.uniform(2, 5)
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.vx *= 0.94 # Tření
+        self.vy *= 0.94
+        self.life -= self.decay
+        return self.life > 0
+
+    def draw(self, surface):
+        alpha = int(255 * self.life)
+        # Čtvercové částice pro "pixel" styl
+        s = pygame.Surface((int(self.size), int(self.size)), pygame.SRCALPHA)
+        s.fill((*self.color, alpha))
+        surface.blit(s, (int(self.x), int(self.y)))
+
+combat_particles = []
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Hlavní herní smyčka - běží, dokud hra neběží
@@ -724,6 +755,9 @@ while running:
 
     # Aktualizace částic brány
     gate_particles = [p for p in gate_particles if p.update(gate_speed_mult)]
+    
+    # Aktualizace částic souboje
+    combat_particles = [p for p in combat_particles if p.update()]
 
     # POHYB KOSTKY - hráčův modrý čtverec se pohybuje
     cube_x += vel_x  # Přidej rychlost X
@@ -837,6 +871,9 @@ while running:
                 if tip_rect.colliderect(player_rect_l):
                     player_hp -= PLAYER_DAMAGE
                     player_invincible = PLAYER_INVINCIBLE_FRAMES
+                    # Částice pro hráče (modré)
+                    for _ in range(8):
+                        combat_particles.append(CombatParticle(cx, cy, BLUE_LIGHT))
         else:
             enemy._lunge_t = 0.0  # Skeletoni nemají oštěp
         # ──────────────────────────────────────────────────────────────────────
@@ -848,6 +885,9 @@ while running:
         if player_rect.colliderect(enemy_rect_col) and player_invincible == 0 and not is_dashing:
             player_hp -= PLAYER_DAMAGE          # Odeber život
             player_invincible = PLAYER_INVINCIBLE_FRAMES  # Nastav nezranitelnost po zásahu
+            # Částice pro hráče (modré)
+            for _ in range(8):
+                combat_particles.append(CombatParticle(cx, cy, BLUE_LIGHT))
                     
         # Nepřítel se nemůže jít mimo obrazovku
         enemy.x = max(0, min(WIDTH - enemy.size, enemy.x))
@@ -923,6 +963,12 @@ while running:
             if inside:  # Je nepřítel zasažen?
                 enemy.hp -= attack_damage  # Způsobí zranění
                 enemies_hit_this_slash.add(enemy)  # Vyznač jako zasažený
+                
+                # Částice při zásahu
+                p_count = 15 if enemy.hp <= 0 else 6
+                for _ in range(p_count):
+                    combat_particles.append(CombatParticle(ecx, ecy, enemy.color))
+
                 if enemy.hp <= 0:  # Je mrtvý?
                     enemies.remove(enemy)  # Odstraň z hry
     else:  # Když ne slashing
@@ -1185,6 +1231,10 @@ while running:
 
     # 5. ČÁSTICE brány (prach a úlomky)
     for p in gate_particles:
+        p.draw(screen)
+
+    # 6. ČÁSTICE souboje (krev a úlomky)
+    for p in combat_particles:
         p.draw(screen)
 
     # Nakresli všechny nepřátele (skeletony) a jejich praskání
