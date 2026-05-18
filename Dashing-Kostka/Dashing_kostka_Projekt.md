@@ -1,19 +1,16 @@
 # Dashing Kostka
 
-## Popis
-Dynamická akční hra v Pygame, kde ovládáte modrou kostku vybavenou katánou a čelíte množství nepřátel. Používejte strategické dashing manévry k úniku a útoku na nepřátele typu "skeleton".
+## Název projektu
+Dashing Kostka
 
-## Gameplay
-- Využívejte dash mechaniku pro mobilitu a obranu
-- Umělá inteligence nepřátel vás sleduje a napadá
+## Popis a cíl projektu
+Cílem projektu je vytvořit dynamickou akční hru v Pygame, ve které hráč ovládá modrou kostku vybavenou katánou a bojuje proti nepřátelům pomocí rychlých dash manévrů.
 
-## Mechaniky
-- **Meč**: Pokročilý vizuální systém s čepelí a rukojětí
-- **Nepřátelé**: Dynamičtí protivníci s osobním zdravím a inteligentem
-- **Dash**: Rychlý pohyb pro taktické pozicování
-- **Sledování**: Nepřátelé vás detekují v určitého poloměru a útočí
+## Popis funkcionality programu
+Hráč provádí dash a útoky, aby se vyhnul nebezpečím a porazil nepřátele. Nepřátelé používají jednoduchou AI, sledují hráče a reagují v určitých situacích.
 
-## Technologie
-- Pygame (grafika a fyzika)
-- Fullscreen režim
-- Matematické kalkulace pro rotaci a sledování
+## Technická část
+- Použité knihovny: Pygame pro grafiku, vstupy a herní logiku.
+- Algoritmy: detekce kolizí, nepřátelská AI, dash mechanika a sledování cílů.
+- Datové struktury: seznamy pro správu nepřátel, objekty pro hráče a nepřátele, stavové proměnné pro zásahy a životy.
+- Další technické detaily: výpočty rotace a sledování, práce s herní smyčkou a vykreslováním.
