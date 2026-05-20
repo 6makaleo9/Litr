@@ -60,10 +60,13 @@ ENEMY_SPEED = 1.0
 SPOT_RADIUS = 500
 
 # ─── OŠTĚP GOBLINA - konstanty útoku ─────────────────────────────────────────
-SPEAR_LUNGE_RANGE    = 100   # Vzdálenost (px) ve které goblin bodne
-SPEAR_LUNGE_DURATION = 14    # Snímků trvá jedno bodnutí (dopředu + zpět)
-SPEAR_LUNGE_COOLDOWN = 90    # Snímků mezi bodnutími (~1.5 s při 60 FPS)
-SPEAR_LUNGE_EXTRA    = 28    # O kolik px se hrot posune vpřed při bodnutí
+SPEAR_LUNGE_RANGE      = 140   # Vzdálenost (px) ve které goblin bodne
+SPEAR_LUNGE_DURATION   = 14    # Snímků trvá jedno bodnutí (dopředu + zpět)
+SPEAR_LUNGE_COOLDOWN   = 90    # Snímků mezi bodnutími (~1.5 s při 60 FPS)
+SPEAR_LUNGE_BASE       = 88    # Základní délka oštěpu od středu goblina
+SPEAR_LUNGE_EXTRA      = 58    # O kolik px se hrot posune vpřed při bodnutí
+GOBLIN_KEEP_DISTANCE   = SPEAR_LUNGE_RANGE - 20  # Goblin se stáhne, pokud je příliš blízko hráči
+GOBLIN_APPROACH_RANGE  = SPEAR_LUNGE_RANGE       # Goblin se přiblíží jen do efektivního dosahu
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ─── EFEKT PRASKÁNÍ SKELETU ────────────────────────────────
@@ -820,7 +823,16 @@ while running:
             dx = (cx - ecx) / dist  # Směr X
             dy = (cy - ecy) / dist  # Směr Y
             
-            if enemy.hp <= 5:  # Když má málo zdraví
+            if enemy.type_name == "goblin":
+                # Goblin drží bezpečný odstup pro bodnutí z dosahu
+                if dist < GOBLIN_KEEP_DISTANCE:
+                    enemy.x -= dx * ENEMY_SPEED
+                    enemy.y -= dy * ENEMY_SPEED
+                elif dist > GOBLIN_APPROACH_RANGE:
+                    enemy.x += dx * ENEMY_SPEED
+                    enemy.y += dy * ENEMY_SPEED
+                # Jinak zůstane na místě a čeká na bodnutí
+            elif enemy.hp <= 5:  # Když má málo zdraví
                 # Utíká od hráče
                 enemy.x -= dx * ENEMY_SPEED
                 enemy.y -= dy * ENEMY_SPEED
@@ -836,8 +848,8 @@ while running:
             if enemy.spear_lunge_cooldown > 0:
                 enemy.spear_lunge_cooldown -= 1
 
-            # Spusť bodnutí pokud je hráč blízko a goblin není ve švihu a má připraveno
-            if (dist < SPEAR_LUNGE_RANGE and
+            # Spusť bodnutí pokud je hráč v dosahu oštěpu a goblin není ve švihu
+            if (dist <= SPEAR_LUNGE_RANGE and
                     enemy.spear_lunge_timer == 0 and
                     enemy.spear_lunge_cooldown == 0 and
                     dist > 0):
@@ -862,7 +874,7 @@ while running:
                 gcx_l = enemy.x + enemy.size / 2
                 gcy_l = enemy.y + enemy.size / 2
                 sp_angle_l = math.atan2(cy - gcy_l, cx - gcx_l)
-                shaft_len_l = enemy.size + 22 + SPEAR_LUNGE_EXTRA * lunge_t
+                shaft_len_l = SPEAR_LUNGE_BASE + SPEAR_LUNGE_EXTRA * lunge_t
                 tip_lx = gcx_l + math.cos(sp_angle_l) * shaft_len_l
                 tip_ly = gcy_l + math.sin(sp_angle_l) * shaft_len_l
                 # Hitbox hrotu (malý čtvereček kolem špičky)
@@ -1264,7 +1276,7 @@ while running:
             
             # Aktuální lunge posun (animace bodnutí)
             lunge_offset = getattr(enemy, '_lunge_t', 0.0) * SPEAR_LUNGE_EXTRA
-            SHAFT_LEN    = enemy.size + 22 + lunge_offset  # Roste při bodnutí
+            SHAFT_LEN    = SPEAR_LUNGE_BASE + lunge_offset  # Roste při bodnutí
             
             # Střed goblina
             gcx = enemy.x + enemy.size / 2
@@ -1405,7 +1417,7 @@ while running:
             # ─── DEBUG HITBOX OŠTĚPU GOBLINA ──────────────────────────────────
             if enemy.type_name == "goblin":
                 lunge_off_dbg = getattr(enemy, '_lunge_t', 0.0) * SPEAR_LUNGE_EXTRA
-                shaft_len_dbg = enemy.size + 22 + lunge_off_dbg
+                shaft_len_dbg = SPEAR_LUNGE_BASE + lunge_off_dbg
                 sp_ang_dbg    = math.atan2(cy - ecy, cx - ecx)
                 sp_c_dbg      = math.cos(sp_ang_dbg)
                 sp_s_dbg      = math.sin(sp_ang_dbg)
