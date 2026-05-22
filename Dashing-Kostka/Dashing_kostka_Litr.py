@@ -1457,20 +1457,73 @@ while running:
     screen.blit(score_surf, (WIDTH - score_surf.get_width() - 20, 20))
 
     # ─── HUD ZDRAVÍ HRÁČE (vlevo dole) ───────────────────────────────────────
-    heart_size = 38                 # Velikost jednoho srdce
+    heart_size = 38                 # Základní velikost srdce
     heart_gap  = 12                 # Mezera mezi srdci
     hp_label   = font_button.render("HP", True, (200, 200, 200))
     hud_y      = HEIGHT - heart_size - 28  # Dolní okraj s odsazením
     hud_x      = 24                        # Levý okraj
     screen.blit(hp_label, (hud_x, hud_y + (heart_size - hp_label.get_height()) // 2))
-    # Nakresli srdce - plná (červená) nebo prázdná (šedá)
+
+    # Pomocná funkce pro kreslení srdce v rámci rectu (hx,hy,size)
+    def draw_heart(surface, hx, hy, size, filled=True, fill_col=(220,50,50), outline_col=(255,130,130)):
+        # Vypočti základní body/vykresli obrys (slightly larger for outline)
+        r = size
+        # Lobe centers
+        lcx = hx + int(r * 0.3)
+        rcx = hx + int(r * 0.7)
+        cyc = hy + int(r * 0.35)
+        rad = int(r * 0.28)
+        # Triangle points (spodní část srdce)
+        tip = (hx + r // 2, hy + r)
+        left = (hx + int(r * 0.05), hy + int(r * 0.45))
+        right = (hx + int(r * 0.95), hy + int(r * 0.45))
+
+        # Outline (slightly bigger)
+        outline_surf = pygame.Surface((r+6, r+6), pygame.SRCALPHA)
+        ox = 3; oy = 3
+        pygame.draw.circle(outline_surf, outline_col, (lcx - hx + ox, cyc - hy + oy), rad+1)
+        pygame.draw.circle(outline_surf, outline_col, (rcx - hx + ox, cyc - hy + oy), rad+1)
+        pygame.draw.polygon(outline_surf, outline_col, [
+            (tip[0]-hx+ox, tip[1]-hy+oy),
+            (left[0]-hx+ox, left[1]-hy+oy),
+            (right[0]-hx+ox, right[1]-hy+oy),
+        ])
+        surface.blit(outline_surf, (hx-ox, hy-oy))
+
+        # Fill
+        if filled:
+            pygame.draw.circle(surface, fill_col, (lcx, cyc), rad)
+            pygame.draw.circle(surface, fill_col, (rcx, cyc), rad)
+            pygame.draw.polygon(surface, fill_col, [tip, left, right])
+        else:
+            empty_col = (55, 55, 65)
+            empty_border = (85, 85, 95)
+            pygame.draw.circle(surface, empty_col, (lcx, cyc), rad)
+            pygame.draw.circle(surface, empty_col, (rcx, cyc), rad)
+            pygame.draw.polygon(surface, empty_col, [tip, left, right])
+            pygame.draw.circle(surface, empty_border, (lcx, cyc), rad, 2)
+            pygame.draw.circle(surface, empty_border, (rcx, cyc), rad, 2)
+            pygame.draw.polygon(surface, empty_border, [tip, left, right], 2)
+
+    # Pulsing scale while invincible to indicate hit state
+    if player_invincible > 0:
+        pulse = 1.0 + 0.08 * math.sin(pygame.time.get_ticks() * 0.02)
+    else:
+        pulse = 1.0
+
+    # Nakresli srdce (teď jako tvar) a přidej i číselný indikátor HP
     for i in range(PLAYER_MAX_HP):
-        hx = hud_x + hp_label.get_width() + 14 + i * (heart_size + heart_gap)
-        hy = hud_y
-        color_heart  = (220, 50, 50) if i < player_hp else (55, 55, 65)
-        border_color = (255, 130, 130) if i < player_hp else (85, 85, 95)
-        pygame.draw.circle(screen, color_heart,  (hx + heart_size // 2, hy + heart_size // 2), heart_size // 2)
-        pygame.draw.circle(screen, border_color, (hx + heart_size // 2, hy + heart_size // 2), heart_size // 2, 3)
+        base_x = hud_x + hp_label.get_width() + 14 + i * (heart_size + heart_gap)
+        # Pokud pulse != 1.0, upravíme velikost a centrování
+        cur_size = max(8, int(heart_size * (pulse if i < player_hp else 1.0)))
+        hx = base_x + (heart_size - cur_size) // 2
+        hy = hud_y + (heart_size - cur_size) // 2
+        if i < player_hp:
+            draw_heart(screen, hx, hy, cur_size, filled=True,
+                       fill_col=(220,50,50), outline_col=(255,130,130))
+        else:
+            draw_heart(screen, hx, hy, cur_size, filled=False)
+
     # ─────────────────────────────────────────────────────────────────────────
 
     # Výpočet screen shaku pro finální blit
