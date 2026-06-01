@@ -270,6 +270,8 @@ SLASH_DURATION    = 10          # Jak dlouho trvá animace (10 snímků)
 SLASH_START_ANGLE =    0.0      # Začátek: čepel leží vzadu
 SLASH_END_ANGLE   =  200.0      # Konec: čepel je nahoře
 slash_timer = 0  # Kolik snímků zbývá do konce animace?
+AIR_SLASH_DURATION = 14  # Délka speciálního vzdušného slashe při plném nabití
+is_air_slash = False  # Plně nabitý útok uvolní zvláštní vzdušný slash
 
 # Funkce - jak rychle se katana otáčí (hladký pohyb)
 def ease_katana(t):
@@ -421,6 +423,54 @@ class CombatParticle:
         surface.blit(s, (int(self.x), int(self.y)))
 
 combat_particles = []
+
+# Vzdušný slash projektil
+AIR_SLASH_SPEED = 18.0  # Rychlost vzdušného slashe
+air_slashes = []
+
+class AirSlash:
+    def __init__(self, x, y, vx, vy, damage):
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.damage = damage
+        self.radius = 12
+        self.hit_enemies = set()
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        return not self.hits_wall()
+
+    def hits_wall(self):
+        # Zničit na okrajích obrazovky
+        return (self.x < -self.radius or self.x > WIDTH + self.radius or
+                self.y < -self.radius or self.y > HEIGHT + self.radius)
+
+    def rect(self):
+        return pygame.Rect(int(self.x - self.radius), int(self.y - self.radius),
+                           int(self.radius * 2), int(self.radius * 2))
+
+    def draw(self, surface):
+        cx, cy = int(self.x), int(self.y)
+        
+        # Získej úhel pohybu a otočí o 90 stupňů
+        travel_angle = math.atan2(self.vy, self.vx)
+        line_angle = travel_angle + math.pi / 2
+        
+        # Délka čáry (kolmo na pohyb)
+        line_len = 80
+        
+        # Vypočítej koncové body čáry
+        end_x = cx + math.cos(line_angle) * line_len
+        end_y = cy + math.sin(line_angle) * line_len
+        start_x = cx - math.cos(line_angle) * line_len
+        start_y = cy - math.sin(line_angle) * line_len
+        
+        # Nakresli rovnou čáru (červeně)
+        pygame.draw.line(surface, RED, (int(start_x), int(start_y)), (int(end_x), int(end_y)), 6)
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Hlavní herní smyčka - běží, dokud hra neběží
@@ -536,11 +586,7 @@ while running:
                 
                 # Kolik je nabito? (0 = nic, 1 = plně nabito po 3 sekundách)
                 charge_factor = min(1.0, hold_seconds / 3.0)
-                
-                # Čím více nabito, tím rychlejší dash (1x až 2x)
-                speed_multiplier = 1.0 + charge_factor
-                final_dash_speed = DASH_SPEED * speed_multiplier  # Finální rychlost
-                
+
                 # Střed kostky
                 cx0 = cube_x + cube_size / 2
                 cy0 = cube_y + cube_size / 2
@@ -548,17 +594,32 @@ while running:
                 ddx = mx - cx0  # Rozdíl X
                 ddy = my - cy0  # Rozdíl Y
                 dist = math.hypot(ddx, ddy)  # Vzdálenost ke kurzoru
-                if dist > 0:  # Pokud se myš pohybuje
-                    # Vypočítej směr a nastav rychlost
-                    vel_x = (ddx / dist) * final_dash_speed
-                    vel_y = (ddy / dist) * final_dash_speed
-                slash_timer = SLASH_DURATION  # Spusť animaci katany
 
-                # Dash vždy udělí nezranitelnost - zaručí ochranu i při spamu klikání
-                player_invincible = max(player_invincible, PLAYER_INVINCIBLE_FRAMES)
+                if charge_factor >= 1.0:
+                    # Plné nabití uvolní vzdušný slash místo silného boostu
+                    is_air_slash = True
+                    attack_damage = 8
+                    slash_timer = AIR_SLASH_DURATION
+                    vel_x = 0.0
+                    vel_y = 0.0
+                    if dist > 0:
+                        proj_vx = (ddx / dist) * AIR_SLASH_SPEED
+                        proj_vy = (ddy / dist) * AIR_SLASH_SPEED
+                    else:
+                        proj_vx, proj_vy = AIR_SLASH_SPEED, 0.0
+                    air_slashes.append(AirSlash(cx0, cy0, proj_vx, proj_vy, attack_damage))
+                else:
+                    is_air_slash = False
+                    # Čím více nabito, tím rychlejší dash (1x až 2x)
+                    speed_multiplier = 1.0 + charge_factor
+                    final_dash_speed = DASH_SPEED * speed_multiplier  # Finální rychlost
+                    if dist > 0:  # Pokud se myš pohybuje
+                        # Vypočítej směr a nastav rychlost
+                        vel_x = (ddx / dist) * final_dash_speed
+                        vel_y = (ddy / dist) * final_dash_speed
+                    slash_timer = SLASH_DURATION
+                    attack_damage = 1
 
-                # Pokud je plně nabito, způsobí více zranění
-                attack_damage = 5 if charge_factor >= 1.0 else 1
                 enemies_hit_this_slash.clear()  # Vyčisti seznam zasažených nepřátel
 
     # ─── VYKRESLENÍ MENU ──────────────────────────────────────────────────────
@@ -762,6 +823,13 @@ while running:
     # Aktualizace částic souboje
     combat_particles = [p for p in combat_particles if p.update()]
 
+    # Aktualizace vzdušných slashů
+    new_air_slashes = []
+    for slash in air_slashes:
+        if slash.update():
+            new_air_slashes.append(slash)
+    air_slashes = new_air_slashes
+
     # POHYB KOSTKY - hráčův modrý čtverec se pohybuje
     cube_x += vel_x  # Přidej rychlost X
     cube_y += vel_y  # Přidej rychlost Y
@@ -905,6 +973,22 @@ while running:
         enemy.x = max(0, min(WIDTH - enemy.size, enemy.x))
         enemy.y = max(0, min(HEIGHT - enemy.size, enemy.y))
 
+    # Zpracování vzdušného slashe - projektil způsobuje zranění skrz nepřátele a zastaví se na zdích
+    for slash in air_slashes:
+        for enemy in enemies[:]:
+            if enemy in slash.hit_enemies:
+                continue
+            if slash.rect().colliderect(pygame.Rect(enemy.x, enemy.y, enemy.size, enemy.size)):
+                enemy.hp -= slash.damage
+                slash.hit_enemies.add(enemy)
+                p_count = 15 if enemy.hp <= 0 else 8
+                ecx = enemy.x + enemy.size / 2
+                ecy = enemy.y + enemy.size / 2
+                for _ in range(p_count):
+                    combat_particles.append(CombatParticle(ecx, ecy, enemy.color))
+                if enemy.hp <= 0:
+                    enemies.remove(enemy)
+
     # SMRT HRÁČE - žádné životy? Respawn na start
     if player_hp <= 0:
         player_hp = PLAYER_MAX_HP           # Obnov životy
@@ -915,8 +999,6 @@ while running:
         vel_y = 0.0
         slash_timer = 0
         enemies_hit_this_slash.clear()
-
-    # ROTACE KE KURZORU - otáčej katanu tak aby ukazovala na myš
     cx = cube_x + cube_size / 2  # Střed kostky X
     cy = cube_y + cube_size / 2  # Střed kostky Y
     mx, my = pygame.mouse.get_pos()  # Pozice myši
@@ -926,66 +1008,66 @@ while running:
     is_slashing = slash_timer > 0  # Probíhá teď slash?
     if is_slashing:  # Pokud ano
         # Kolik procent animace je hotovo?
-        raw_t    = 1.0 - slash_timer / SLASH_DURATION
+        raw_t    = 1.0 - slash_timer / (AIR_SLASH_DURATION if is_air_slash else SLASH_DURATION)
         progress = ease_katana(raw_t)  # Hladký pohyb (ease)
-        # Vypočítej aktuální úhel katany
         blade_pivot = SLASH_START_ANGLE + (SLASH_END_ANGLE - SLASH_START_ANGLE) * progress
         slash_timer -= 1  # Zmenši čítač
-        
-        # Zraňuj nepřátele během útoku (ale jen jednou za útok)
-        # Tvar katany pro detekci zranění
-        c_half = cube_size / 2  # Poloviny
-        tip_dist = -10 - int(cube_size * 1.65)  # Vzdálenost hrotu
-        
-        # Vytvoř polygon - tvar katany
-        hitbox_poly = []
-        w_px, w_py = rotate_point(c_half, -c_half, -angle)  # Zápěstí
-        hitbox_poly.append((cx + w_px, cy + w_py))
-        
-        # Přidej body po čepeli
-        for p_angle in range(0, int(SLASH_END_ANGLE) + 5, 5):
-            rx, ry = rotate_point(tip_dist - 25, 0, p_angle)
-            lx = rx + c_half
-            ly = ry - c_half
-            w_lx, w_ly = rotate_point(lx, ly, -angle)
-            hitbox_poly.append((cx + w_lx, cy + w_ly))
-            
-        # Zkontroluj všechny nepřátele
-        for enemy in enemies[:]:
-            if enemy in enemies_hit_this_slash:  # Už jsme ho zasáhli?
-                continue  # Přeskoči ho
-                
-            # Střed nepřítele
-            ecx = enemy.x + enemy.size / 2
-            ecy = enemy.y + enemy.size / 2
-            
-            # Je nepřítel uvnitř tvaru katany? (polygon test)
-            inside = False
-            n = len(hitbox_poly)
-            p1x, p1y = hitbox_poly[0]
-            for i in range(1, n + 1):
-                p2x, p2y = hitbox_poly[i % n]
-                if ecy > min(p1y, p2y) and ecy <= max(p1y, p2y) and ecx <= max(p1x, p2x):
-                    if p1y != p2y:
-                        xints = (ecy - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                        if p1x == p2x or ecx <= xints:
-                            inside = not inside
-                p1x, p1y = p2x, p2y
-                
-            if inside:  # Je nepřítel zasažen?
-                enemy.hp -= attack_damage  # Způsobí zranění
-                enemies_hit_this_slash.add(enemy)  # Vyznač jako zasažený
-                
-                # Částice při zásahu
-                p_count = 15 if enemy.hp <= 0 else 6
-                for _ in range(p_count):
-                    combat_particles.append(CombatParticle(ecx, ecy, enemy.color))
 
-                if enemy.hp <= 0:  # Je mrtvý?
-                    enemies.remove(enemy)  # Odstraň z hry
+        if not is_air_slash:
+            # Zraňuj nepřátele během útoku (ale jen jednou za útok)
+            # Tvar katany pro detekci zranění
+            c_half = cube_size / 2  # Poloviny
+            tip_dist = -10 - int(cube_size * 1.65)  # Vzdálenost hrotu
+
+            # Vytvoř polygon - tvar katany
+            hitbox_poly = []
+            w_px, w_py = rotate_point(c_half, -c_half, -angle)  # Zápěstí
+            hitbox_poly.append((cx + w_px, cy + w_py))
+
+            # Přidej body po čepeli
+            for p_angle in range(0, int(SLASH_END_ANGLE) + 5, 5):
+                rx, ry = rotate_point(tip_dist - 25, 0, p_angle)
+                lx = rx + c_half
+                ly = ry - c_half
+                w_lx, w_ly = rotate_point(lx, ly, -angle)
+                hitbox_poly.append((cx + w_lx, cy + w_ly))
+
+            # Zkontroluj všechny nepřátele
+            for enemy in enemies[:]:
+                if enemy in enemies_hit_this_slash:  # Už jsme ho zasáhli?
+                    continue  # Přeskoči ho
+                # Střed nepřítele
+                ecx = enemy.x + enemy.size / 2
+                ecy = enemy.y + enemy.size / 2
+
+                # Je nepřítel uvnitř tvaru katany? (polygon test)
+                inside = False
+                n = len(hitbox_poly)
+                p1x, p1y = hitbox_poly[0]
+                for i in range(1, n + 1):
+                    p2x, p2y = hitbox_poly[i % n]
+                    if ecy > min(p1y, p2y) and ecy <= max(p1y, p2y) and ecx <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xints = (ecy - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                            if p1x == p2x or ecx <= xints:
+                                inside = not inside
+                    p1x, p1y = p2x, p2y
+
+                if inside:  # Je nepřítel zasažen?
+                    enemy.hp -= attack_damage  # Způsobí zranění
+                    enemies_hit_this_slash.add(enemy)  # Vyznač jako zasažený
+
+                    # Částice při zásahu
+                    p_count = 15 if enemy.hp <= 0 else 6
+                    for _ in range(p_count):
+                        combat_particles.append(CombatParticle(ecx, ecy, enemy.color))
+
+                    if enemy.hp <= 0:  # Je mrtvý?
+                        enemies.remove(enemy)  # Odstraň z hry
     else:  # Když ne slashing
         # Katana v klidu - leží vzadu
         blade_pivot = 0.0
+        is_air_slash = False
 
     # KATANA - tvar a rozměry zbraně
     HALF       = cube_size // 2  # Poloviny kostky
@@ -1330,6 +1412,14 @@ while running:
         # Trhliny Minecraft-stylu místo HP lišty
         hp_ratio = enemy.hp / enemy.max_hp
         draw_cracks(screen, enemy.x, enemy.y, enemy.size, hp_ratio)
+
+    # Vykresli vzdušné slashe
+    for slash in air_slashes:
+        slash.draw(screen)
+
+    # Vykresli vzdušné slashe
+    for slash in air_slashes:
+        slash.draw(screen)
 
     # Vytvoř pomocnou plochu - sem si nakreslíme kostku a katanu
     cube_surf = pygame.Surface((SURF_SIZE, SURF_SIZE), pygame.SRCALPHA)
