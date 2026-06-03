@@ -441,6 +441,13 @@ class AirSlash:
     def update(self):
         self.x += self.vx
         self.y += self.vy
+        # Vytvářej více červených částic po stranách slashu
+        if random.random() < 0.8:
+            side_angle = math.atan2(self.vy, self.vx) + math.pi / 2
+            spread = random.uniform(-12, 12)
+            px = self.x + math.cos(side_angle) * spread
+            py = self.y + math.sin(side_angle) * spread
+            combat_particles.append(CombatParticle(px, py, RED))
         return not self.hits_wall()
 
     def hits_wall(self):
@@ -454,22 +461,33 @@ class AirSlash:
 
     def draw(self, surface):
         cx, cy = int(self.x), int(self.y)
-        
-        # Získej úhel pohybu a otočí o 90 stupňů
+
+        # Získej směr letu projektilu podle jeho rychlosti.
         travel_angle = math.atan2(self.vy, self.vx)
+        # Otoč čáru o 90 stupňů, aby vznikl široký slash efekt.
         line_angle = travel_angle + math.pi / 2
-        
-        # Délka čáry (kolmo na pohyb)
+
+        # Délka čáry pro efekt širokého řezu.
         line_len = 80
-        
-        # Vypočítej koncové body čáry
+        # Vypočítej koncové body čáry.
         end_x = cx + math.cos(line_angle) * line_len
         end_y = cy + math.sin(line_angle) * line_len
         start_x = cx - math.cos(line_angle) * line_len
         start_y = cy - math.sin(line_angle) * line_len
+
+        # Vytvoř průhlednou vrstvu pro jemný glow efekt kolem čáry.
+        glow = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        # Nakresli více vrstvových linií s různou sílou a průhledností.
+        for i, width in enumerate((10, 7, 4, 2)):
+            alpha = 40 - i * 8
+            # Použij čistě červenou barvu pro slash, bez bílých tónů.
+            color = (255, 0 + i * 10, 0 + i * 10, alpha)
+            pygame.draw.line(glow, color, (int(start_x), int(start_y)), (int(end_x), int(end_y)), width)
+
+        # Přidej glow na obrazovku jako světelný efekt.
+        surface.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
         
-        # Nakresli rovnou čáru (červeně)
-        pygame.draw.line(surface, RED, (int(start_x), int(start_y)), (int(end_x), int(end_y)), 6)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 
