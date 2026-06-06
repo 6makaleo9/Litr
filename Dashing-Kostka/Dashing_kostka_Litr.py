@@ -211,6 +211,12 @@ shake_intensity = 0.0
 # ─── ZDRAVÍ HRÁČE ────────────────────────────────────────────────────────────
 PLAYER_MAX_HP      = 5    # Maximální počet životů
 player_hp          = PLAYER_MAX_HP  # Aktuální životy
+PLAYER_MAX_STAMINA = 100  # Maximální stamina (vizuální ukazatel)
+player_stamina     = PLAYER_MAX_STAMINA  # Aktuální stamina
+STAMINA_DASH_COST  = 10   # Kolik stamina stojí jeden dash
+STAMINA_AIR_SLASH_COST = PLAYER_MAX_STAMINA // 4  # Air slash stojí jednu čtvrtinu celé staminy
+STAMINA_REGEN_MS   = 250  # Jak často se regeneruje 1 stamina (4/s)
+last_stamina_regen = pygame.time.get_ticks()  # Čas poslední regenerace
 PLAYER_INVINCIBLE_FRAMES = 90  # Počet snímků nezranitelnosti po zásahu (~1.5 s)
 player_invincible  = 0    # Zbývající snímky nezranitelnosti (0 = zranitelný)
 PLAYER_DAMAGE      = 1    # Zranění způsobené nepřítelem při dotyku
@@ -616,6 +622,7 @@ while running:
                 if charge_factor >= 1.0:
                     # Plné nabití uvolní vzdušný slash místo silného boostu
                     is_air_slash = True
+                    player_stamina = max(0, player_stamina - STAMINA_AIR_SLASH_COST)
                     attack_damage = 8
                     slash_timer = AIR_SLASH_DURATION
                     vel_x = 0.0
@@ -628,6 +635,7 @@ while running:
                     air_slashes.append(AirSlash(cx0, cy0, proj_vx, proj_vy, attack_damage))
                 else:
                     is_air_slash = False
+                    player_stamina = max(0, player_stamina - STAMINA_DASH_COST)
                     # Čím více nabito, tím rychlejší dash (1x až 2x)
                     speed_multiplier = 1.0 + charge_factor
                     final_dash_speed = DASH_SPEED * speed_multiplier  # Finální rychlost
@@ -847,6 +855,13 @@ while running:
         if slash.update():
             new_air_slashes.append(slash)
     air_slashes = new_air_slashes
+
+    # Regenerace stamina: 1 za sekundu
+    now_ticks = pygame.time.get_ticks()
+    if now_ticks - last_stamina_regen >= STAMINA_REGEN_MS:
+        steps = (now_ticks - last_stamina_regen) // STAMINA_REGEN_MS
+        last_stamina_regen += steps * STAMINA_REGEN_MS
+        player_stamina = min(PLAYER_MAX_STAMINA, player_stamina + steps)
 
     # POHYB KOSTKY - hráčův modrý čtverec se pohybuje
     cube_x += vel_x  # Přidej rychlost X
@@ -1631,6 +1646,17 @@ while running:
                        fill_col=(220,50,50), outline_col=(255,130,130))
         else:
             draw_heart(screen, hx, hy, cur_size, filled=False)
+
+    # ─── STAMINA BAR (vizuální placeholder, bez funkcí) ────────────────────
+    stamina_bar_x = hud_x + hp_label.get_width() + 14
+    stamina_bar_y = hud_y + heart_size + 10
+    stamina_bar_w = PLAYER_MAX_HP * (heart_size + heart_gap) - heart_gap
+    stamina_bar_h = 12
+    stamina_fill_w = int(stamina_bar_w * (player_stamina / PLAYER_MAX_STAMINA))
+
+    pygame.draw.rect(screen, (25, 30, 42), (stamina_bar_x, stamina_bar_y, stamina_bar_w, stamina_bar_h))
+    pygame.draw.rect(screen, (70, 150, 255), (stamina_bar_x, stamina_bar_y, stamina_fill_w, stamina_bar_h))
+    pygame.draw.rect(screen, (160, 190, 255), (stamina_bar_x, stamina_bar_y, stamina_bar_w, stamina_bar_h), 2)
 
     # ─────────────────────────────────────────────────────────────────────────
 
