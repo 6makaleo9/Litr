@@ -621,30 +621,32 @@ while running:
 
                 if charge_factor >= 1.0:
                     # Plné nabití uvolní vzdušný slash místo silného boostu
-                    is_air_slash = True
-                    player_stamina = max(0, player_stamina - STAMINA_AIR_SLASH_COST)
-                    attack_damage = 8
-                    slash_timer = AIR_SLASH_DURATION
-                    vel_x = 0.0
-                    vel_y = 0.0
-                    if dist > 0:
-                        proj_vx = (ddx / dist) * AIR_SLASH_SPEED
-                        proj_vy = (ddy / dist) * AIR_SLASH_SPEED
-                    else:
-                        proj_vx, proj_vy = AIR_SLASH_SPEED, 0.0
-                    air_slashes.append(AirSlash(cx0, cy0, proj_vx, proj_vy, attack_damage))
+                    if player_stamina >= STAMINA_AIR_SLASH_COST:
+                        is_air_slash = True
+                        player_stamina = max(0, player_stamina - STAMINA_AIR_SLASH_COST)
+                        attack_damage = 8
+                        slash_timer = AIR_SLASH_DURATION
+                        vel_x = 0.0
+                        vel_y = 0.0
+                        if dist > 0:
+                            proj_vx = (ddx / dist) * AIR_SLASH_SPEED
+                            proj_vy = (ddy / dist) * AIR_SLASH_SPEED
+                        else:
+                            proj_vx, proj_vy = AIR_SLASH_SPEED, 0.0
+                        air_slashes.append(AirSlash(cx0, cy0, proj_vx, proj_vy, attack_damage))
                 else:
-                    is_air_slash = False
-                    player_stamina = max(0, player_stamina - STAMINA_DASH_COST)
-                    # Čím více nabito, tím rychlejší dash (1x až 2x)
-                    speed_multiplier = 1.0 + charge_factor
-                    final_dash_speed = DASH_SPEED * speed_multiplier  # Finální rychlost
-                    if dist > 0:  # Pokud se myš pohybuje
-                        # Vypočítej směr a nastav rychlost
-                        vel_x = (ddx / dist) * final_dash_speed
-                        vel_y = (ddy / dist) * final_dash_speed
-                    slash_timer = SLASH_DURATION
-                    attack_damage = 1
+                    if player_stamina >= STAMINA_DASH_COST:
+                        is_air_slash = False
+                        player_stamina = max(0, player_stamina - STAMINA_DASH_COST)
+                        # Čím více nabito, tím rychlejší dash (1x až 2x)
+                        speed_multiplier = 1.0 + charge_factor
+                        final_dash_speed = DASH_SPEED * speed_multiplier  # Finální rychlost
+                        if dist > 0:  # Pokud se myš pohybuje
+                            # Vypočítej směr a nastav rychlost
+                            vel_x = (ddx / dist) * final_dash_speed
+                            vel_y = (ddy / dist) * final_dash_speed
+                        slash_timer = SLASH_DURATION
+                        attack_damage = 1
 
                 enemies_hit_this_slash.clear()  # Vyčisti seznam zasažených nepřátel
 
