@@ -213,9 +213,9 @@ PLAYER_MAX_HP      = 5    # Maximální počet životů
 player_hp          = PLAYER_MAX_HP  # Aktuální životy
 PLAYER_MAX_STAMINA = 100  # Maximální stamina (vizuální ukazatel)
 player_stamina     = PLAYER_MAX_STAMINA  # Aktuální stamina
-STAMINA_DASH_COST  = 10   # Kolik stamina stojí jeden dash
+STAMINA_DASH_COST  = 5   # Kolik stamina stojí jeden dash
 STAMINA_AIR_SLASH_COST = PLAYER_MAX_STAMINA // 4  # Air slash stojí jednu čtvrtinu celé staminy
-STAMINA_REGEN_MS   = 250  # Jak často se regeneruje 1 stamina (4/s)
+STAMINA_REGEN_MS   = 50  # Jak často se regeneruje 1 stamina (4/s)
 last_stamina_regen = pygame.time.get_ticks()  # Čas poslední regenerace
 PLAYER_INVINCIBLE_FRAMES = 90  # Počet snímků nezranitelnosti po zásahu (~1.5 s)
 player_invincible  = 0    # Zbývající snímky nezranitelnosti (0 = zranitelný)
