@@ -271,7 +271,7 @@ btn_pulse_t     = 0.0     # Čítač pro pulzování tlačítka
 attack_damage = 1  # Kolik bodů zranění způsobí útok
 enemies_hit_this_slash = set()  # Jaké nepřátele jsme už v tomhle útoku zasáhli?
 
-# Slash - animace máchnutí katany
+# Slash - animace máchnutí meče
 SLASH_DURATION    = 10          # Jak dlouho trvá animace (10 snímků)
 SLASH_START_ANGLE =    0.0      # Začátek: čepel leží vzadu
 SLASH_END_ANGLE   =  200.0      # Konec: čepel je nahoře
@@ -279,8 +279,8 @@ slash_timer = 0  # Kolik snímků zbývá do konce animace?
 AIR_SLASH_DURATION = 14  # Délka speciálního vzdušného slashe při plném nabití
 is_air_slash = False  # Plně nabitý útok uvolní zvláštní vzdušný slash
 
-# Funkce - jak rychle se katana otáčí (hladký pohyb)
-def ease_katana(t):
+# Funkce - jak rychle se meč otáčí (hladký pohyb)
+def ease_sword(t):
     """Začne rychle, zpomalí se na konci"""
     return 1.0 - (1.0 - t) ** 3
 
@@ -294,7 +294,7 @@ def rotate_point(px, py, angle_deg):
 # Hodiny - aby se hra měla fixní počet snímků za vteřinu (FPS)
 clock = pygame.time.Clock()
 
-# Pomocná průhledná plocha - zde si nakreslíme kostku a katanu
+# Pomocná průhledná plocha - zde si nakreslíme kostku a meč
 SURF_SIZE   = cube_size * 5  # Velikost plochy
 SURF_CENTER = SURF_SIZE // 2  # Střed plochy
 
@@ -1039,22 +1039,22 @@ while running:
     mx, my = pygame.mouse.get_pos()  # Pozice myši
     angle = -math.degrees(math.atan2(my - cy, mx - cx))  # Vypočítej úhel
 
-    # ANIMACE KATANY - automatické máchnutí zbraní
+    # ANIMACE MEČE - automatické máchnutí zbraní
     is_slashing = slash_timer > 0  # Probíhá teď slash?
     if is_slashing:  # Pokud ano
         # Kolik procent animace je hotovo?
         raw_t    = 1.0 - slash_timer / (AIR_SLASH_DURATION if is_air_slash else SLASH_DURATION)
-        progress = ease_katana(raw_t)  # Hladký pohyb (ease)
+        progress = ease_sword(raw_t)  # Hladký pohyb (ease)
         blade_pivot = SLASH_START_ANGLE + (SLASH_END_ANGLE - SLASH_START_ANGLE) * progress
         slash_timer -= 1  # Zmenši čítač
 
         if not is_air_slash:
             # Zraňuj nepřátele během útoku (ale jen jednou za útok)
-            # Tvar katany pro detekci zranění
+            # Tvar meče pro detekci zranění
             c_half = cube_size / 2  # Poloviny
             tip_dist = -10 - int(cube_size * 1.65)  # Vzdálenost hrotu
 
-            # Vytvoř polygon - tvar katany
+            # Vytvoř polygon - tvar meče
             hitbox_poly = []
             w_px, w_py = rotate_point(c_half, -c_half, -angle)  # Zápěstí
             hitbox_poly.append((cx + w_px, cy + w_py))
@@ -1100,11 +1100,11 @@ while running:
                     if enemy.hp <= 0:  # Je mrtvý?
                         enemies.remove(enemy)  # Odstraň z hry
     else:  # Když ne slashing
-        # Katana v klidu - leží vzadu
+        # Meč v klidu - leží vzadu
         blade_pivot = 0.0
         is_air_slash = False
 
-    # KATANA - tvar a rozměry zbraně
+    # MEČ - tvar a rozměry zbraně
     HALF       = cube_size // 2  # Poloviny kostky
     TOP_Y      = -HALF  # Horní okraj
     HANDLE_LEN = 20  # Délka rukojeti
@@ -1113,16 +1113,16 @@ while running:
     GUARD_HW   = 10  # Garda - výška
     GUARD_HD   = 3  # Garda - hloubka
 
-    # Kde jsou jednotlivé části katany?
+    # Kde jsou jednotlivé části meče?
     pommel_x = HALF + 10  # Konec rukojeti
     guard_x  = pommel_x - HANDLE_LEN  # Garda (přechod)
     tip_x    = guard_x - BLADE_LEN  # Hrot čepele
 
-    # Bod kolem kterého se katana otáčí
+    # Bod kolem kterého se meč otáčí
     pivot_x = (pommel_x + guard_x) / 2.0
     pivot_y = TOP_Y
 
-    # Funkce - transformuj body katany (otočení + posun)
+    # Funkce - transformuj body meče (otočení + posun)
     def _transform(pts):
         res = []
         for x, y in pts:
@@ -1135,7 +1135,7 @@ while running:
             res.append((int(SURF_CENTER + rx + pivot_x), int(SURF_CENTER + ry + pivot_y)))
         return res
 
-    # Tvary jednotlivých částí katany
+    # Tvary jednotlivých částí meče
     # Rukojeť - krabička
     handle_local = [
         (pommel_x, TOP_Y - 2), (guard_x, TOP_Y - 2),
@@ -1486,7 +1486,7 @@ while running:
     # Nakresli indikátor nabití (šipka)
     pygame.draw.polygon(cube_surf, draw_arrow_color, arrow_pts_surf)
 
-    # Nakresli katanu - jednotlivé části
+    # Nakresli meč - jednotlivé části
     # 1. Rukojeť (tmavě hnědá)
     pygame.draw.polygon(cube_surf, HANDLE_COLOR, handle_surf)
     # 2. Konec rukojeti (stříbrný kruh)
@@ -1498,7 +1498,7 @@ while running:
     # 5. Lesk čepele - tenká bílá čára (pro lesklý efekt)
     pygame.draw.line(cube_surf, WHITE, guard_c_surf, tip_surf, 1)
 
-    # Otočí celou plochu tak aby katana ukazovala na myš
+    # Otočí celou plochu tak aby meč ukazoval na myš
     rotated_surf = pygame.transform.rotate(cube_surf, angle)
     rotated_rect = rotated_surf.get_rect(center=(int(cx), int(cy)))
     screen.blit(rotated_surf, rotated_rect)  # Vykresli na obrazovku
@@ -1508,7 +1508,7 @@ while running:
         # Vytvořit plochu pro debug
         hitbox_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         
-        # Nakresli tvar katany - červeně (pro debug)
+        # Nakresli tvar meče - červeně (pro debug)
         c_half = cube_size / 2
         tip_dist = -10 - int(cube_size * 1.65)
         
